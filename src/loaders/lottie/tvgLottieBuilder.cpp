@@ -1537,15 +1537,16 @@ void LottieBuilder::updateEffect(LottieLayer* layer, float frameNo, uint8_t qual
 
 void LottieBuilder::updateLayer(LottieComposition* comp, Scene* scene, LottieLayer* layer, float frameNo)
 {
+    auto active = (frameNo >= layer->inPoint && frameNo < layer->outPoint);
+
     if (layer->type == LottieLayer::Audio) {
-        if (audioResolver.func) updateAudio(comp, layer, frameNo);
+        if (audioResolver.func) updateAudio(comp, layer, frameNo, active);
         return;
     }
 
     layer->scene = nullptr;
 
-    //visibility
-    if (frameNo < layer->inPoint || frameNo >= layer->outPoint) {
+    if (!active) {
         layer->invalidate();
         return;
     }
@@ -1715,18 +1716,20 @@ static bool _buildComposition(LottieComposition* comp, LottieRootLayer* parent)
 /* External Class Implementation                                        */
 /************************************************************************/
 
-void LottieBuilder::updateAudio(LottieComposition* comp, LottieLayer* layer, float frameNo)
+void LottieBuilder::updateAudio(LottieComposition* comp, LottieLayer* layer, float frameNo, bool active)
 {
     if (layer->children.empty()) return;
 
     auto ctrl = layer->audio();
-    auto active = frameNo >= layer->inPoint && frameNo < layer->outPoint;
+    auto pos = layer->remap(comp, frameNo, exps);
+    if (pos < 0.0f) active = false;    
+
     auto volume = active ? ctrl->volume(frameNo, tween, exps) : 100.0f;
 
     // audio condition is changed
     if ((active != ctrl->prevActive) || (active && !tvg::equal(volume, ctrl->prevVolume))) {
         auto& src = static_cast<LottieAudio*>(layer->children.first())->src;
-        auto offset = active ? layer->remap(comp, frameNo, exps) / comp->frameRate : 0.0f;
+        auto offset = active ? pos / comp->frameRate : 0.0f;
         LottieAudioResolver info = {src.data, src.mimeType, src.size, offset, volume, active, (src.size > 0)};
         audioResolver.func(info, audioResolver.data);
     }

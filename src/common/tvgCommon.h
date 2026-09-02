@@ -63,8 +63,11 @@ using namespace tvg;
     #define TVG_FALLTHROUGH
 #endif
 
+//Compile-time opt-in: replace the global operator new/delete with the tvg allocator.
+#ifdef THORVG_USE_CUSTOM_ALLOCATOR
 void* operator new(std::size_t size);
 void operator delete(void* ptr) noexcept;
+#endif
 
 namespace tvg
 {

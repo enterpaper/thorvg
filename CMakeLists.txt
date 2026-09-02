@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.30)
 project(thorvg VERSION 1.0.0 LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 include(GNUInstallDirs)
 
@@ -14,6 +14,8 @@ endif()
 # Renders
 option(THORVG_ENABLE_CPU_ENGINE "Enable cpu rasterizer engine supoort" ON)
 option(THORVG_ENABLE_GL_ENGINE "Enable gl rasterizer engine support" ON)
+option(THORVG_ENABLE_WG_ENGINE "Enable webgpu rasterizer engine support" OFF)
+option(THORVG_ENABLE_BGFX_ENGINE "Enable bgfx rasterizer engine support" ON)
 
 # Multi-Tasking
 option(THORVG_ENABLE_THREADS "Enable thread support for parallel rendering" ON)
@@ -45,6 +47,8 @@ option(THORVG_ENABLE_SIMD "Enable CPU Vectorization(SIMD) support" ON)
 
 option(THORVG_ENABLE_LOGGING "Enable logging-related compiler diagnostics" OFF)
 
+option(THORVG_USE_CUSTOM_ALLOCATOR "Replace global operator new/delete with the tvg allocator" OFF)
+
 set(THORVG_SANITIZE "none" CACHE STRING
     "Sanitizer mode for Thorvg (none, address, undefined, thread)")
 set_property(CACHE THORVG_SANITIZE PROPERTY STRINGS
@@ -53,7 +57,10 @@ set_property(CACHE THORVG_SANITIZE PROPERTY STRINGS
 # File IO
 option(THORVG_ENABLE_FILE_IO "Enable file io support" ON)
 
-set(THORVG_LIBRARY_TYPE "SHARED" CACHE STRING
+# Examples
+option(THORVG_BUILD_EXAMPLES "Build thorvg examples" ON)
+
+set(THORVG_LIBRARY_TYPE "STATIC" CACHE STRING
     "Library type override for Thorvg (SHARED, STATIC, OBJECT, or empty to follow BULD_SHARED_LIBS)")
 
 set(THORVG_SIMD_TYPE "none")
@@ -78,92 +85,104 @@ else()
     set(THORVG_BUILD_SHARED_LIBRARY ${BUILD_SHARED_LIBS})
 endif()
 
+if(THORVG_ENABLE_BGFX_ENGINE)
+    set(BGFX_BUILD_TOOLS     OFF  CACHE INTERNAL "")
+    set(BGFX_BUILD_EXAMPLES  OFF  CACHE INTERNAL "")
+    set(BGFX_CUSTOM_TARGETS  OFF  CACHE INTERNAL "")
+    # add_compile_definitions(BGFX_CONFIG_MULTITHREADED=0)
+    add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/bgfx.cmake)
+endif()
+
+if(THORVG_BUILD_EXAMPLES)
+    add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/glfw)
+endif()
+
 include_directories(
-    ${CMAKE_SOURCE_DIR}/inc
-    ${CMAKE_SOURCE_DIR}/src/common
-    ${CMAKE_SOURCE_DIR}/src/loaders/raw
-    ${CMAKE_SOURCE_DIR}/src/loaders
-    ${CMAKE_SOURCE_DIR}/src/renderer
+    ${CMAKE_CURRENT_SOURCE_DIR}/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/common
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/raw
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
 set(PROJECT_HEADERS
-    ${CMAKE_SOURCE_DIR}/inc/thorvg.h
-    ${CMAKE_SOURCE_DIR}/src/common/tvgAllocator.h
-    ${CMAKE_SOURCE_DIR}/src/common/tvgArray.h
-    ${CMAKE_SOURCE_DIR}/src/common/tvgColor.h
-    ${CMAKE_SOURCE_DIR}/src/common/tvgCommon.h
-    ${CMAKE_SOURCE_DIR}/src/common/tvgCompressor.h
-    ${CMAKE_SOURCE_DIR}/src/common/tvgInlist.h
-    ${CMAKE_SOURCE_DIR}/src/common/tvgLock.h
-    ${CMAKE_SOURCE_DIR}/src/common/tvgMap.h
-    ${CMAKE_SOURCE_DIR}/src/common/tvgMath.h
-    ${CMAKE_SOURCE_DIR}/src/common/tvgStr.h
-    ${CMAKE_SOURCE_DIR}/src/loaders/raw/tvgRawLoader.h
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgAccessor.h
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgAnimation.h
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgCanvas.h
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgFill.h
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgLoader.h
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgLoaderMgr.h
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgPaint.h
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgPicture.h
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgRender.h
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgSaveModule.h
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgScene.h
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgShape.h
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgTaskScheduler.h
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgText.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/inc/thorvg.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/common/tvgAllocator.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/common/tvgArray.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/common/tvgColor.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/common/tvgCommon.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/common/tvgCompressor.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/common/tvgInlist.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/common/tvgLock.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/common/tvgMap.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/common/tvgMath.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/common/tvgStr.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/raw/tvgRawLoader.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgAccessor.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgAnimation.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgCanvas.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgFill.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgLoader.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgLoaderMgr.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgPaint.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgPicture.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgRender.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgSaveModule.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgScene.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgShape.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgTaskScheduler.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgText.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/config.h # 占位
 )
 
 set(PROJECT_SOURCES
-    ${CMAKE_SOURCE_DIR}/src/common/tvgCompressor.cpp
-    ${CMAKE_SOURCE_DIR}/src/common/tvgMath.cpp
-    ${CMAKE_SOURCE_DIR}/src/common/tvgStr.cpp
-    ${CMAKE_SOURCE_DIR}/src/loaders/raw/tvgRawLoader.cpp
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgAccessor.cpp
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgAnimation.cpp
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgCanvas.cpp
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgFill.cpp
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgInitializer.cpp
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgLoaderMgr.cpp
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgPaint.cpp
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgPicture.cpp
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgRender.cpp
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgSaver.cpp
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgScene.cpp
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgShape.cpp
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgTaskScheduler.cpp
-    ${CMAKE_SOURCE_DIR}/src/renderer/tvgText.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/common/tvgCompressor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/common/tvgMath.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/common/tvgStr.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/raw/tvgRawLoader.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgAccessor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgAnimation.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgCanvas.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgFill.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgInitializer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgLoaderMgr.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgPaint.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgPicture.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgRender.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgSaver.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgScene.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgShape.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgTaskScheduler.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/tvgText.cpp
 )
 
 if(${THORVG_ENABLE_CPU_ENGINE})
     include_directories(
-        ${CMAKE_SOURCE_DIR}/src/renderer/cpu_engine
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/cpu_engine
     )
 
     list(APPEND PROJECT_HEADERS
-        ${CMAKE_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwCommon.h
-        ${CMAKE_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwRasterAvx.h
-        ${CMAKE_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwRasterC.h
-        ${CMAKE_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwRasterNeon.h
-        ${CMAKE_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwRasterTexmap.h
-        ${CMAKE_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwRenderer.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwCommon.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwRasterAvx.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwRasterC.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwRasterNeon.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwRasterTexmap.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwRenderer.h
     )
 
     list(APPEND PROJECT_SOURCES
-        ${CMAKE_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwBlendOp.cpp
-        ${CMAKE_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwFill.cpp
-        ${CMAKE_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwImage.cpp
-        ${CMAKE_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwMemPool.cpp
-        ${CMAKE_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwPostEffect.cpp
-        ${CMAKE_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwRaster.cpp
-        ${CMAKE_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwRenderer.cpp
-        ${CMAKE_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwRle.cpp
-        ${CMAKE_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwShape.cpp
-        ${CMAKE_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwStroke.cpp
-        ${CMAKE_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwUtil.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwBlendOp.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwFill.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwImage.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwMemPool.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwPostEffect.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwRaster.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwRenderer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwRle.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwShape.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwStroke.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/cpu_engine/tvgSwUtil.cpp
     )
 endif()
 
@@ -171,48 +190,134 @@ if(${THORVG_ENABLE_GL_ENGINE})
     find_package(OpenGL REQUIRED)
 
     include_directories(
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine
     )
 
     list(APPEND PROJECT_HEADERS
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGl.h
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlCommon.h
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlEffect.h
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlGpuBuffer.h
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlProgram.h
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlRenderer.h
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlRenderPass.h
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlRenderTarget.h
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlRenderTask.h
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlShader.h
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlShaderSrc.h
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlSolidBatch.h
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlStateCache.h
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlStencilCoverBatch.h
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlTessellator.h
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlTextureMgr.h
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/tvgGpuCommon.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGl.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlCommon.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlEffect.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlGpuBuffer.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlProgram.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlRenderer.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlRenderPass.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlRenderTarget.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlRenderTask.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlShader.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlShaderSrc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlSolidBatch.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlStateCache.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlStencilCoverBatch.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlTessellator.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlTextureMgr.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/tvgGpuCommon.h
     )
 
     list(APPEND PROJECT_SOURCES
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGl.cpp
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlEffect.cpp
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlGeometry.cpp
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlGpuBuffer.cpp
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlProgram.cpp
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlRenderer.cpp
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlRenderPass.cpp
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlRenderTarget.cpp
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlRenderTask.cpp
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlShader.cpp
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlShaderSrc.cpp
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlSolidBatch.cpp
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlStateCache.cpp
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlStencilCoverBatch.cpp
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlTessellator.cpp
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlTextureMgr.cpp
-        ${CMAKE_SOURCE_DIR}/src/renderer/gpu_engine/tvgGpuCommon.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGl.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlEffect.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlGeometry.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlGpuBuffer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlProgram.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlRenderer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlRenderPass.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlRenderTarget.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlRenderTask.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlShader.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlShaderSrc.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlSolidBatch.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlStateCache.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlStencilCoverBatch.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlTessellator.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/gl/tvgGlTextureMgr.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/tvgGpuCommon.cpp
+    )
+endif()
+
+if(${THORVG_ENABLE_WG_ENGINE})
+    include_directories(
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine
+    )
+
+    list(APPEND PROJECT_HEADERS
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgBindGroups.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgCommon.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgCompositor.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgGeometry.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgPipelines.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgRenderData.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgRenderTarget.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgRenderTask.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgRenderer.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgShaderSrc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgShaderTypes.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgSolidBatch.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgStencilBatch.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgTessellator.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgTextureMgr.h
+    )
+
+    list(APPEND PROJECT_SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgBindGroups.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgCommon.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgCompositor.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgGeometry.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgPipelines.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgRenderData.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgRenderTarget.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgRenderTask.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgRenderer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgShaderSrc.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgShaderTypes.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgSolidBatch.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgStencilBatch.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgTessellator.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgTextureMgr.cpp
+    )
+endif()
+
+if(${THORVG_ENABLE_BGFX_ENGINE})
+    set(TVG_BGFX_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx)
+
+    include_directories(
+        ${CMAKE_SOURCE_DIR}/third_party/bgfx/include
+        ${CMAKE_SOURCE_DIR}/third_party/bimg/include
+        ${CMAKE_SOURCE_DIR}/third_party/bx/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx/shaders
+    )
+
+    list(APPEND PROJECT_HEADERS
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx/shaders/fs_blit.bin.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx/shaders/fs_blur.bin.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx/shaders/fs_effect.bin.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx/shaders/fs_gradient.bin.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx/shaders/fs_image.bin.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx/shaders/fs_solid.bin.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx/shaders/vs_shape.bin.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx/tvgBgfxCommon.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx/tvgBgfxCompositor.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx/tvgBgfxContext.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx/tvgBgfxGeometry.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx/tvgBgfxRenderData.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx/tvgBgfxRenderTarget.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx/tvgBgfxRenderer.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx/tvgBgfxShaderTypes.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx/tvgBgfxTessellator.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx/tvgBgfxTextureMgr.h
+    )
+
+    list(APPEND PROJECT_SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx/tvgBgfxCompositor.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx/tvgBgfxContext.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx/tvgBgfxRenderData.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx/tvgBgfxRenderTarget.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx/tvgBgfxRenderer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx/tvgBgfxTessellator.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx/tvgBgfxTextureMgr.cpp
     )
 endif()
 
@@ -220,29 +325,29 @@ if(${THORVG_USE_EXTERNAL_JPG})
     find_package(libjpeg-turbo REQUIRED)
 
     include_directories(
-        ${CMAKE_SOURCE_DIR}/src/loaders/external_jpg
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/external_jpg
     )
 
     list(APPEND PROJECT_HEADERS
-        ${CMAKE_SOURCE_DIR}/src/loaders/external_jpg/tvgJpgLoader.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/external_jpg/tvgJpgLoader.h
     )
 
     list(APPEND PROJECT_SOURCES
-        ${CMAKE_SOURCE_DIR}/src/loaders/external_jpg/tvgJpgLoader.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/external_jpg/tvgJpgLoader.cpp
     )
 else()
     include_directories(
-        ${CMAKE_SOURCE_DIR}/src/loaders/jpg
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/jpg
     )
 
     list(APPEND PROJECT_HEADERS
-        ${CMAKE_SOURCE_DIR}/src/loaders/jpg/tvgJpgd.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/jpg/tvgJpgLoader.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/jpg/tvgJpgd.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/jpg/tvgJpgLoader.h
     )
 
     list(APPEND PROJECT_SOURCES
-        ${CMAKE_SOURCE_DIR}/src/loaders/jpg/tvgJpgd.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/jpg/tvgJpgLoader.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/jpg/tvgJpgd.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/jpg/tvgJpgLoader.cpp
     )
 endif()
 
@@ -250,30 +355,30 @@ if(${THORVG_USE_EXTERNAL_PNG})
     find_package(PNG REQUIRED)
 
     include_directories(
-        ${CMAKE_SOURCE_DIR}/src/loaders/external_png
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/external_png
     )
 
     list(APPEND PROJECT_HEADERS
-        ${CMAKE_SOURCE_DIR}/src/loaders/external_png/tvgPngLoader.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/external_png/tvgPngLoader.h
     )
 
     list(APPEND PROJECT_SOURCES
-        ${CMAKE_SOURCE_DIR}/src/loaders/external_png/tvgPngLoader.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/external_png/tvgPngLoader.cpp
     )
 else()
     include_directories(
-        ${CMAKE_SOURCE_DIR}/src/loaders/png
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/png
     )
 
     list(APPEND PROJECT_HEADERS
-        ${CMAKE_SOURCE_DIR}/src/loaders/png/tvgLodePng.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/png/tvgPngLoader.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/png/tvgLodePng.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/png/tvgPngLoader.h
     )
 
     list(APPEND PROJECT_SOURCES
-        ${CMAKE_SOURCE_DIR}/src/loaders/png/tvgLodePng.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/png/tvgLodePngUtil.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/png/tvgPngLoader.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/png/tvgLodePng.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/png/tvgLodePngUtil.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/png/tvgPngLoader.cpp
     )
 endif()
 
@@ -281,662 +386,662 @@ if(${THORVG_USE_EXTERNAL_WEBP})
     find_package(WebP REQUIRED)
 
     include_directories(
-        ${CMAKE_SOURCE_DIR}/src/loaders/external_webp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/external_webp
     )
 
     list(APPEND PROJECT_HEADERS
-        ${CMAKE_SOURCE_DIR}/src/loaders/external_webp/tvgWebpLoader.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/external_webp/tvgWebpLoader.h
     )
 
     list(APPEND PROJECT_SOURCES
-        ${CMAKE_SOURCE_DIR}/src/loaders/external_webp/tvgWebpLoader.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/external_webp/tvgWebpLoader.cpp
     )
 else()
     include_directories(
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp
     )
 
     list(APPEND PROJECT_HEADERS
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dec/alphai.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dec/common.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dec/decode_vp8.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dec/vp8i.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dec/vp8li.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dec/webpi.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dsp/dsp.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dsp/lossless.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dsp/yuv.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/utils/bit_reader_inl.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/utils/bit_reader.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/utils/color_cache.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/utils/endian_inl.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/utils/huffman.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/utils/quant_levels_dec.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/utils/random.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/utils/rescaler.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/utils/utils.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/webp/decode.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/webp/format_constants.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/webp/types.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/tvgWebpLoader.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dec/alphai.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dec/common.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dec/decode_vp8.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dec/vp8i.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dec/vp8li.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dec/webpi.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dsp/dsp.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dsp/lossless.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dsp/yuv.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/utils/bit_reader_inl.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/utils/bit_reader.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/utils/color_cache.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/utils/endian_inl.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/utils/huffman.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/utils/quant_levels_dec.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/utils/random.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/utils/rescaler.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/utils/utils.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/webp/decode.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/webp/format_constants.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/webp/types.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/tvgWebpLoader.h
     )
 
     list(APPEND PROJECT_SOURCES
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dec/alpha.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dec/buffer.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dec/frame.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dec/io.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dec/quant.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dec/tree.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dec/vp8.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dec/vp8l.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dec/webp.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dsp/alpha_processing.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dsp/argb.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dsp/cpu.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dsp/dec_clip_tables.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dsp/dec.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dsp/filters.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dsp/lossless.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dsp/rescaler.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dsp/upsampling.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/dsp/yuv.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/utils/bit_reader.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/utils/color_cache.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/utils/huffman.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/utils/quant_levels_dec.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/utils/random.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/utils/rescaler.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/webp/tvgWebpLoader.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dec/alpha.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dec/buffer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dec/frame.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dec/io.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dec/quant.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dec/tree.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dec/vp8.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dec/vp8l.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dec/webp.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dsp/alpha_processing.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dsp/argb.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dsp/cpu.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dsp/dec_clip_tables.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dsp/dec.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dsp/filters.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dsp/lossless.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dsp/rescaler.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dsp/upsampling.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/dsp/yuv.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/utils/bit_reader.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/utils/color_cache.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/utils/huffman.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/utils/quant_levels_dec.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/utils/random.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/utils/rescaler.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/webp/tvgWebpLoader.cpp
     )
 endif()
 
 if(${THORVG_ENABLE_LOTTIE_LOADER})
     include_directories(
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/include
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jcontext
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jrt
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jmem
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/regexp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/vm
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jcontext
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jrt
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jmem
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/regexp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/vm
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie
     )
 
     list(APPEND PROJECT_HEADERS
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-alloc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-error-messages.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-errors.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-extended-info.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-gc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-globals.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-helpers-number.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-helpers.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-init-finalize.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-lcache.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-literal-storage.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-module.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-property-hashmap.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-bigint64array-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-bigint64array.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-biguint64array-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-biguint64array.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-float32array-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-float32array.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-int16array-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-int16array.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-int32array-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-int32array.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-int8array-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-int8array.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-typedarray-helpers.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-typedarray-prototype-template.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-typedarray-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-typedarray-template.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-typedarray.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint16array-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint16array.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint32array-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint32array.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint8array-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint8array.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint8clampedarray-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint8clampedarray.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-aggregateerror-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-aggregateerror.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-array-iterator-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-array-prototype-unscopables.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-array-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-array.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-arraybuffer-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-arraybuffer.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-from-sync-iterator-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-function-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-function.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-generator-function.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-generator-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-generator.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-iterator-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-atomics.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-bigint-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-bigint.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-boolean-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-boolean.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-dataview-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-dataview.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-date-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-date.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-error-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-error.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-evalerror-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-evalerror.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-function-prototype.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-function-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-function.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-generator-function.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-generator-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-generator.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-global.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-handlers.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-handlers.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-helpers-macro-defines.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-helpers-macro-undefs.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-helpers.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-internal-routines-template.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-intrinsic.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-iterator-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-map-iterator-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-map-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-map.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-math.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-number-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-number.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-object-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-object.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-object.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-promise-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-promise.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-proxy.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-rangeerror-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-rangeerror.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-referenceerror-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-referenceerror.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-reflect.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-regexp-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-regexp-string-iterator-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-regexp.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-set-iterator-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-set-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-set.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-shared-arraybuffer-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-shared-arraybuffer.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-string-iterator-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-string-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-string.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-symbol-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-symbol.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-syntaxerror-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-syntaxerror.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-type-error-thrower.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-typeerror-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-typeerror.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-urierror-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-urierror.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-weakmap-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-weakmap.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-weakref-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-weakref.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-weakset-prototype.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-weakset.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtins-internal.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtins.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtins.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-arguments-object.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-array-object.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-arraybuffer-object.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-async-generator-object.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-atomics-object.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-big-uint.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-bigint-object.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-bigint.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-boolean-object.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-comparison.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-container-object.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-conversion.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-dataview-object.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-eval.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-exceptions.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-function-object.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-iterator-object.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-jobqueue.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-lex-env.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-number-object.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-objects-general.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-objects.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-promise-object.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-proxy-object.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-reference.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-regexp-object.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-shared-arraybuffer-object.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-string-object.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-symbol-object.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-typedarray-object.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/include/jerry-config.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/include/jerryscript-compiler.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/include/jerryscript-core.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/include/jerryscript-port.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/include/jerryscript-types.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/include/jerryscript.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jcontext/jcontext.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jmem/jmem-allocator-internal.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jmem/jmem.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jrt/jrt-bit-fields.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jrt/jrt-libc-includes.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jrt/jrt-types.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jrt/jrt.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit/lit-char-helpers.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit/lit-globals.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit/lit-magic-strings.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit/lit-magic-strings.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit/lit-strings.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit/lit-unicode-conversions-sup.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit/lit-unicode-conversions.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit/lit-unicode-folding.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit/lit-unicode-ranges-sup.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit/lit-unicode-ranges.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/byte-code.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/common.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-lexer.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-parser-limits.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-parser.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-scanner.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-parser-internal.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-parser-tagged-template-literal.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-scanner-internal.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/parser-errors.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/parser-error-messages.inc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/regexp/re-bytecode.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/regexp/re-compiler-context.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/regexp/re-compiler.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/regexp/re-parser.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/regexp/re-token.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/vm/opcodes.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/vm/vm-defines.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/vm/vm-stack.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/vm/vm.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/error/en.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/error/error.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/internal/biginteger.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/internal/clzll.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/internal/diyfp.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/internal/dtoa.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/internal/ieee754.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/internal/itoa.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/internal/meta.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/internal/pow10.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/internal/regex.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/internal/stack.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/internal/strfunc.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/internal/strtod.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/internal/swap.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/msinttypes/inttypes.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/msinttypes/stdint.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/allocators.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/cursorstreamwrapper.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/document.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/encodedstream.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/encodings.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/filereadstream.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/filewritestream.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/fwd.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/istreamwrapper.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/memorybuffer.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/memorystream.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/ostreamwrapper.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/pointer.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/prettywriter.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/rapidjson.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/reader.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/schema.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/stream.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/stringbuffer.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/uri.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/rapidjson/writer.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/thorvg_lottie.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/tvgLottieBuilder.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/tvgLottieCommon.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/tvgLottieExpressions.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/tvgLottieInterpolator.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/tvgLottieLoader.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/tvgLottieModel.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/tvgLottieModifier.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/tvgLottieParser.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/tvgLottieParserHandler.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/tvgLottieProperty.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/tvgLottieRenderPooler.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/tvgLottieTween.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-alloc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-error-messages.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-errors.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-extended-info.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-gc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-globals.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-helpers-number.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-helpers.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-init-finalize.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-lcache.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-literal-storage.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-module.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-property-hashmap.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-bigint64array-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-bigint64array.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-biguint64array-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-biguint64array.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-float32array-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-float32array.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-int16array-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-int16array.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-int32array-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-int32array.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-int8array-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-int8array.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-typedarray-helpers.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-typedarray-prototype-template.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-typedarray-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-typedarray-template.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-typedarray.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint16array-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint16array.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint32array-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint32array.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint8array-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint8array.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint8clampedarray-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint8clampedarray.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-aggregateerror-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-aggregateerror.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-array-iterator-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-array-prototype-unscopables.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-array-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-array.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-arraybuffer-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-arraybuffer.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-from-sync-iterator-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-function-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-function.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-generator-function.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-generator-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-generator.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-iterator-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-atomics.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-bigint-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-bigint.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-boolean-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-boolean.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-dataview-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-dataview.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-date-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-date.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-error-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-error.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-evalerror-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-evalerror.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-function-prototype.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-function-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-function.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-generator-function.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-generator-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-generator.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-global.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-handlers.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-handlers.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-helpers-macro-defines.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-helpers-macro-undefs.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-helpers.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-internal-routines-template.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-intrinsic.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-iterator-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-map-iterator-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-map-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-map.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-math.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-number-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-number.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-object-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-object.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-object.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-promise-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-promise.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-proxy.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-rangeerror-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-rangeerror.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-referenceerror-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-referenceerror.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-reflect.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-regexp-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-regexp-string-iterator-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-regexp.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-set-iterator-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-set-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-set.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-shared-arraybuffer-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-shared-arraybuffer.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-string-iterator-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-string-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-string.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-symbol-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-symbol.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-syntaxerror-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-syntaxerror.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-type-error-thrower.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-typeerror-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-typeerror.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-urierror-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-urierror.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-weakmap-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-weakmap.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-weakref-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-weakref.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-weakset-prototype.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-weakset.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtins-internal.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtins.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtins.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-arguments-object.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-array-object.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-arraybuffer-object.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-async-generator-object.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-atomics-object.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-big-uint.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-bigint-object.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-bigint.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-boolean-object.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-comparison.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-container-object.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-conversion.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-dataview-object.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-eval.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-exceptions.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-function-object.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-iterator-object.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-jobqueue.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-lex-env.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-number-object.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-objects-general.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-objects.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-promise-object.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-proxy-object.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-reference.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-regexp-object.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-shared-arraybuffer-object.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-string-object.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-symbol-object.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-typedarray-object.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/include/jerry-config.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/include/jerryscript-compiler.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/include/jerryscript-core.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/include/jerryscript-port.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/include/jerryscript-types.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/include/jerryscript.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jcontext/jcontext.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jmem/jmem-allocator-internal.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jmem/jmem.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jrt/jrt-bit-fields.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jrt/jrt-libc-includes.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jrt/jrt-types.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jrt/jrt.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit/lit-char-helpers.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit/lit-globals.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit/lit-magic-strings.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit/lit-magic-strings.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit/lit-strings.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit/lit-unicode-conversions-sup.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit/lit-unicode-conversions.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit/lit-unicode-folding.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit/lit-unicode-ranges-sup.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit/lit-unicode-ranges.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/byte-code.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/common.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-lexer.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-parser-limits.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-parser.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-scanner.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-parser-internal.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-parser-tagged-template-literal.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-scanner-internal.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/parser-errors.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/parser-error-messages.inc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/regexp/re-bytecode.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/regexp/re-compiler-context.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/regexp/re-compiler.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/regexp/re-parser.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/regexp/re-token.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/vm/opcodes.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/vm/vm-defines.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/vm/vm-stack.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/vm/vm.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/error/en.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/error/error.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/internal/biginteger.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/internal/clzll.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/internal/diyfp.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/internal/dtoa.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/internal/ieee754.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/internal/itoa.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/internal/meta.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/internal/pow10.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/internal/regex.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/internal/stack.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/internal/strfunc.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/internal/strtod.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/internal/swap.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/msinttypes/inttypes.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/msinttypes/stdint.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/allocators.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/cursorstreamwrapper.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/document.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/encodedstream.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/encodings.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/filereadstream.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/filewritestream.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/fwd.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/istreamwrapper.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/memorybuffer.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/memorystream.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/ostreamwrapper.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/pointer.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/prettywriter.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/rapidjson.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/reader.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/schema.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/stream.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/stringbuffer.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/uri.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/rapidjson/writer.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/thorvg_lottie.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/tvgLottieBuilder.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/tvgLottieCommon.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/tvgLottieExpressions.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/tvgLottieInterpolator.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/tvgLottieLoader.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/tvgLottieModel.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/tvgLottieModifier.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/tvgLottieParser.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/tvgLottieParserHandler.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/tvgLottieProperty.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/tvgLottieRenderPooler.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/tvgLottieTween.h
     )
 
     list(APPEND PROJECT_SOURCES
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/api/jerryscript.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-alloc.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-errors.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-extended-info.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-gc.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-helpers-collection.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-helpers-conversion.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-helpers-errol.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-helpers-external-pointers.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-helpers-number.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-helpers-string.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-helpers-value.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-helpers.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-init-finalize.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-lcache.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-literal-storage.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-module.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-property-hashmap.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-bigint64array-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-bigint64array.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-biguint64array-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-biguint64array.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-float32array-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-float32array.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-int16array-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-int16array.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-int32array-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-int32array.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-int8array-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-int8array.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-typedarray-helpers.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-typedarray-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-typedarray.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint16array-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint16array.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint32array-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint32array.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint8array-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint8array.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint8clampedarray-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint8clampedarray.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-aggregateerror-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-aggregateerror.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-array-iterator-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-array-prototype-unscopables.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-array-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-array.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-arraybuffer-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-arraybuffer.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-from-sync-iterator-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-function-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-function.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-generator-function.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-generator-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-generator.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-iterator-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-atomics.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-bigint-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-bigint.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-boolean-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-boolean.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-dataview-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-dataview.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-date-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-date.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-error-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-error.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-evalerror-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-evalerror.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-function-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-function.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-generator-function.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-generator-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-generator.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-global.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-handlers.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-helpers-date.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-helpers-error.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-helpers-sort.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-helpers.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-intrinsic.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-iterator-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-map-iterator-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-map-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-map.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-math.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-number-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-number.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-object-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-object.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-promise-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-promise.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-proxy.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-rangeerror-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-rangeerror.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-referenceerror-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-referenceerror.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-reflect.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-regexp-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-regexp-string-iterator-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-regexp.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-set-iterator-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-set-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-set.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-shared-arraybuffer-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-shared-arraybuffer.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-string-iterator-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-string-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-string.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-symbol-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-symbol.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-syntaxerror-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-syntaxerror.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-type-error-thrower.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-typeerror-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-typeerror.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-urierror-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-urierror.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-weakmap-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-weakmap.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-weakref-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-weakref.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-weakset-prototype.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-weakset.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtins.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-arguments-object.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-array-object.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-arraybuffer-object.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-async-generator-object.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-atomics-object.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-big-uint.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-bigint-object.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-bigint.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-boolean-object.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-comparison.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-container-object.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-conversion.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-dataview-object.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-eval.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-exceptions.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-function-object.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-get-put-value.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-iterator-object.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-jobqueue.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-lex-env.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-number-object.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-objects-general.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-objects.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-promise-object.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-proxy-object.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-reference.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-regexp-object.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-shared-arraybuffer-object.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-string-object.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-symbol-object.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-typedarray-object.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jcontext/jcontext.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jmem/jmem-allocator.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jmem/jmem-heap.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jmem/jmem-poolman.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jrt/jrt-fatals.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jrt/jrt-logging.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit/lit-char-helpers.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit/lit-magic-strings.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit/lit-strings.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/byte-code.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/common.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-lexer.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-parser.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-parser-expr.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-parser-mem.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-parser-module.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-parser-statm.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-parser-tagged-template-literal.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-parser-util.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-scanner.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-scanner-ops.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-scanner-util.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/parser-errors.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/regexp/re-bytecode.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/regexp/re-compiler.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/regexp/re-parser.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/vm/opcodes-ecma-arithmetics.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/vm/opcodes-ecma-bitwise.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/vm/opcodes-ecma-relational-equality.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/vm/opcodes.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/vm/vm-stack.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/vm/vm-utils.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/vm/vm.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-port/common/jerry-port-context.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/tvgLottieAnimation.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/tvgLottieBuilder.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/tvgLottieExpressions.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/tvgLottieInterpolator.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/tvgLottieLoader.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/tvgLottieModel.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/tvgLottieModifier.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/tvgLottieParser.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/tvgLottieParserHandler.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/tvgLottieProperty.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/api/jerryscript.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-alloc.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-errors.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-extended-info.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-gc.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-helpers-collection.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-helpers-conversion.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-helpers-errol.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-helpers-external-pointers.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-helpers-number.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-helpers-string.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-helpers-value.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-helpers.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-init-finalize.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-lcache.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-literal-storage.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-module.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/base/ecma-property-hashmap.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-bigint64array-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-bigint64array.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-biguint64array-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-biguint64array.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-float32array-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-float32array.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-int16array-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-int16array.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-int32array-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-int32array.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-int8array-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-int8array.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-typedarray-helpers.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-typedarray-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-typedarray.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint16array-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint16array.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint32array-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint32array.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint8array-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint8array.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint8clampedarray-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/typedarray/ecma-builtin-uint8clampedarray.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-aggregateerror-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-aggregateerror.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-array-iterator-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-array-prototype-unscopables.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-array-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-array.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-arraybuffer-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-arraybuffer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-from-sync-iterator-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-function-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-function.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-generator-function.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-generator-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-generator.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-async-iterator-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-atomics.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-bigint-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-bigint.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-boolean-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-boolean.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-dataview-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-dataview.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-date-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-date.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-error-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-error.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-evalerror-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-evalerror.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-function-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-function.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-generator-function.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-generator-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-generator.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-global.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-handlers.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-helpers-date.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-helpers-error.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-helpers-sort.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-helpers.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-intrinsic.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-iterator-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-map-iterator-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-map-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-map.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-math.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-number-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-number.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-object-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-object.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-promise-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-promise.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-proxy.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-rangeerror-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-rangeerror.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-referenceerror-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-referenceerror.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-reflect.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-regexp-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-regexp-string-iterator-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-regexp.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-set-iterator-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-set-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-set.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-shared-arraybuffer-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-shared-arraybuffer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-string-iterator-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-string-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-string.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-symbol-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-symbol.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-syntaxerror-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-syntaxerror.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-type-error-thrower.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-typeerror-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-typeerror.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-urierror-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-urierror.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-weakmap-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-weakmap.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-weakref-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-weakref.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-weakset-prototype.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtin-weakset.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/builtin-objects/ecma-builtins.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-arguments-object.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-array-object.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-arraybuffer-object.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-async-generator-object.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-atomics-object.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-big-uint.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-bigint-object.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-bigint.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-boolean-object.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-comparison.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-container-object.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-conversion.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-dataview-object.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-eval.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-exceptions.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-function-object.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-get-put-value.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-iterator-object.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-jobqueue.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-lex-env.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-number-object.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-objects-general.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-objects.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-promise-object.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-proxy-object.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-reference.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-regexp-object.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-shared-arraybuffer-object.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-string-object.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-symbol-object.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/ecma/operations/ecma-typedarray-object.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jcontext/jcontext.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jmem/jmem-allocator.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jmem/jmem-heap.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jmem/jmem-poolman.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jrt/jrt-fatals.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/jrt/jrt-logging.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit/lit-char-helpers.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit/lit-magic-strings.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/lit/lit-strings.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/byte-code.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/common.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-lexer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-parser.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-parser-expr.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-parser-mem.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-parser-module.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-parser-statm.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-parser-tagged-template-literal.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-parser-util.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-scanner.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-scanner-ops.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/js-scanner-util.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/js/parser-errors.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/regexp/re-bytecode.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/regexp/re-compiler.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/parser/regexp/re-parser.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/vm/opcodes-ecma-arithmetics.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/vm/opcodes-ecma-bitwise.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/vm/opcodes-ecma-relational-equality.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/vm/opcodes.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/vm/vm-stack.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/vm/vm-utils.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-core/vm/vm.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/jerryscript/jerry-port/common/jerry-port-context.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/tvgLottieAnimation.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/tvgLottieBuilder.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/tvgLottieExpressions.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/tvgLottieInterpolator.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/tvgLottieLoader.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/tvgLottieModel.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/tvgLottieModifier.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/tvgLottieParser.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/tvgLottieParserHandler.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/tvgLottieProperty.cpp
     )
 endif()
 
 if(${THORVG_ENABLE_SVG_LOADER})
     include_directories(
-        ${CMAKE_SOURCE_DIR}/src/loaders/svg
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/svg
     )
 
     list(APPEND PROJECT_HEADERS
-        ${CMAKE_SOURCE_DIR}/src/loaders/svg/tvgSvgBuilder.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/svg/tvgSvgCommon.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/svg/tvgSvgCssStyle.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/svg/tvgSvgLoader.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/svg/tvgSvgPath.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/svg/tvgSvgUtil.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/svg/tvgXmlParser.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/svg/tvgSvgBuilder.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/svg/tvgSvgCommon.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/svg/tvgSvgCssStyle.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/svg/tvgSvgLoader.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/svg/tvgSvgPath.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/svg/tvgSvgUtil.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/svg/tvgXmlParser.h
     )
 
     list(APPEND PROJECT_SOURCES
-        ${CMAKE_SOURCE_DIR}/src/loaders/svg/tvgSvgBuilder.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/svg/tvgSvgCssStyle.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/svg/tvgSvgLoader.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/svg/tvgSvgPath.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/svg/tvgSvgUtil.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/svg/tvgXmlParser.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/svg/tvgSvgBuilder.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/svg/tvgSvgCssStyle.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/svg/tvgSvgLoader.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/svg/tvgSvgPath.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/svg/tvgSvgUtil.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/svg/tvgXmlParser.cpp
     )
 endif()
 
 if(${THORVG_ENABLE_MEDIA_LOADER})
     include_directories(
-        ${CMAKE_SOURCE_DIR}/src/loaders/media
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/media
     )
 
     list(APPEND PROJECT_HEADERS
-        ${CMAKE_SOURCE_DIR}/src/loaders/media/thorvg_media.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/media/tvgMediaLoader.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/media/thorvg_media.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/media/tvgMediaLoader.h
     )
 
     list(APPEND PROJECT_SOURCES
-        ${CMAKE_SOURCE_DIR}/src/loaders/media/tvgVideo.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/media/tvgVideo.cpp
     )
 
     if(APPLE)
         list(APPEND PROJECT_HEADERS
-            ${CMAKE_SOURCE_DIR}/src/loaders/media/apple/tvgAvfMediaLoader.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/media/apple/tvgAvfMediaLoader.h
         )
 
         list(APPEND PROJECT_SOURCES
-            ${CMAKE_SOURCE_DIR}/src/loaders/media/apple/tvgAvfMediaLoader.mm
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/media/apple/tvgAvfMediaLoader.mm
         )
     elseif(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
         list(APPEND PROJECT_HEADERS
-            ${CMAKE_SOURCE_DIR}/src/loaders/media/web/tvgWebMediaLoader.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/media/web/tvgWebMediaLoader.h
         )
 
         list(APPEND PROJECT_SOURCES
-            ${CMAKE_SOURCE_DIR}/src/loaders/media/web/tvgWebMediaLoader.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/media/web/tvgWebMediaLoader.cpp
         )
     else()
         list(APPEND PROJECT_SOURCES
-            ${CMAKE_SOURCE_DIR}/src/loaders/media/tvgMediaLoader.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/media/tvgMediaLoader.cpp
         )
     endif()
 endif()
 
 if(${THORVG_ENABLE_TTF_LOADER} OR ${THORVG_ENABLE_OTF_LOADER})
     include_directories(
-        ${CMAKE_SOURCE_DIR}/src/loaders/sfnt
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/sfnt
     )
 
     list(APPEND PROJECT_HEADERS
-        ${CMAKE_SOURCE_DIR}/src/loaders/sfnt/tvgSfntLoader.h
-        ${CMAKE_SOURCE_DIR}/src/loaders/sfnt/tvgSfntReader.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/sfnt/tvgSfntLoader.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/sfnt/tvgSfntReader.h
     )
 
     list(APPEND PROJECT_SOURCES
-        ${CMAKE_SOURCE_DIR}/src/loaders/sfnt/tvgSfntLoader.cpp
-        ${CMAKE_SOURCE_DIR}/src/loaders/sfnt/tvgSfntReader.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/sfnt/tvgSfntLoader.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/sfnt/tvgSfntReader.cpp
     )
 
     if(${THORVG_ENABLE_TTF_LOADER})
         list(APPEND PROJECT_HEADERS
-            ${CMAKE_SOURCE_DIR}/src/loaders/sfnt/tvgTtfReader.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/sfnt/tvgTtfReader.h
         )
 
         list(APPEND PROJECT_SOURCES
-            ${CMAKE_SOURCE_DIR}/src/loaders/sfnt/tvgTtfReader.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/sfnt/tvgTtfReader.cpp
         )
     endif()
 
     if(${THORVG_ENABLE_OTF_LOADER})
         list(APPEND PROJECT_HEADERS
-            ${CMAKE_SOURCE_DIR}/src/loaders/sfnt/tvgOtfReader.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/sfnt/tvgOtfReader.h
         )
 
         list(APPEND PROJECT_SOURCES
-            ${CMAKE_SOURCE_DIR}/src/loaders/sfnt/tvgOtfReader.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/sfnt/tvgOtfReader.cpp
         )
     endif()
 endif()
 
 if(${THORVG_ENABLE_GIF_SAVER})
     include_directories(
-        ${CMAKE_SOURCE_DIR}/src/savers/gif
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/savers/gif
     )
     
     list(APPEND PROJECT_HEADERS
-        ${CMAKE_SOURCE_DIR}/src/savers/gif/tvgGifEncoder.h
-        ${CMAKE_SOURCE_DIR}/src/savers/gif/tvgGifSaver.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/savers/gif/tvgGifEncoder.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/savers/gif/tvgGifSaver.h
     )
 
     list(APPEND PROJECT_SOURCES
-        ${CMAKE_SOURCE_DIR}/src/savers/gif/tvgGifEncoder.cpp
-        ${CMAKE_SOURCE_DIR}/src/savers/gif/tvgGifSaver.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/savers/gif/tvgGifEncoder.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/savers/gif/tvgGifSaver.cpp
     )
 endif()
 
@@ -946,7 +1051,7 @@ add_library(${PROJECT_NAME} ${THORVG_LIBRARY_TYPE}
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
-    "$<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/inc>"
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>"
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}>"
 )
 
@@ -1054,6 +1159,12 @@ if(${THORVG_ENABLE_GL_ENGINE})
     endif()
 endif()
 
+if(${THORVG_ENABLE_BGFX_ENGINE})
+    target_link_libraries(${PROJECT_NAME} PRIVATE bgfx bx bimg)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE THORVG_BGFX_ENGINE_SUPPORT)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE BX_CONFIG_DEBUG)
+endif()
+
 if(${THORVG_USE_EXTERNAL_JPG})
     target_link_libraries(${PROJECT_NAME} PRIVATE libjpeg-turbo::turbojpeg)
     target_compile_definitions(${PROJECT_NAME} PRIVATE THORVG_EXTERNAL_JPG_LOADER_SUPPORT)
@@ -1153,6 +1264,17 @@ if(${THORVG_ENABLE_FILE_IO})
     target_compile_definitions(${PROJECT_NAME} PRIVATE THORVG_FILE_IO_SUPPORT)
 endif()
 
+if(${THORVG_USE_CUSTOM_ALLOCATOR})
+    target_compile_definitions(${PROJECT_NAME} PRIVATE THORVG_USE_CUSTOM_ALLOCATOR)
+endif()
+
+# -----------------------------------------------------------------------------
+# Examples
+# -----------------------------------------------------------------------------
+if(THORVG_BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
+
 # -----------------------------------------------------------------------------
 # Install
 # -----------------------------------------------------------------------------
@@ -1185,15 +1307,15 @@ endif()
 
 # Public headers. thorvg.h always; the loader-specific API headers only when
 # their module is built (they are self-contained, flat include works).
-set(THORVG_INSTALL_HEADERS ${CMAKE_SOURCE_DIR}/inc/thorvg.h)
+set(THORVG_INSTALL_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/inc/thorvg.h)
 if(${THORVG_ENABLE_LOTTIE_LOADER})
     list(APPEND THORVG_INSTALL_HEADERS
-        ${CMAKE_SOURCE_DIR}/src/loaders/lottie/thorvg_lottie.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/lottie/thorvg_lottie.h
     )
 endif()
 if(${THORVG_ENABLE_MEDIA_LOADER})
     list(APPEND THORVG_INSTALL_HEADERS
-        ${CMAKE_SOURCE_DIR}/src/loaders/media/thorvg_media.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/media/thorvg_media.h
     )
 endif()
 install(FILES ${THORVG_INSTALL_HEADERS}

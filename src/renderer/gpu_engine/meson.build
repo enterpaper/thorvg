@@ -15,3 +15,7 @@ endif
 if wg_engine
     subdir('wg')
 endif
+
+if bgfx_engine
+    subdir('bgfx')
+endif()

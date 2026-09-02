@@ -1,6 +1,6 @@
 option('engines',
    type: 'array',
-   choices: ['cpu', 'gl', 'wg', 'all'],
+   choices: ['cpu', 'gl', 'wg', 'bgfx', 'all'],
    value: ['cpu'],
    description: 'Enable Rasterizer Engine in thorvg')
 
@@ -56,6 +56,11 @@ option('file',
    type: 'boolean',
    value: true,
    description: 'Enable File IO calls in thorvg')
+
+option('custom-allocator',
+   type: 'boolean',
+   value: false,
+   description: 'Replace global operator new/delete with the tvg allocator')
 
 option('extra',
    type: 'array',

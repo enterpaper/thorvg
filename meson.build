@@ -41,6 +41,12 @@ if all_engines or get_option('engines').contains('wg')
     config_h.set10('THORVG_WG_ENGINE_SUPPORT', true)
 endif
 
+bgfx_engine = false
+if all_engines or get_option('engines').contains('bgfx')
+    bgfx_engine = true
+    config_h.set10('THORVG_BGFX_ENGINE_SUPPORT', true)
+endif
+
 # Partial Rendering
 if get_option('partial')
   config_h.set10('THORVG_PARTIAL_RENDER_SUPPORT', true)
@@ -136,6 +142,11 @@ if get_option('file') == true
     config_h.set10('THORVG_FILE_IO_SUPPORT', true)
 endif
 
+# Custom Allocator
+if get_option('custom-allocator') == true
+    config_h.set10('THORVG_USE_CUSTOM_ALLOCATOR', true)
+endif
+
 
 # Extra
 lottie_exp = lottie_loader and get_option('extra').contains('lottie_exp')
@@ -198,6 +209,7 @@ summary(
     'CPU': cpu_engine,
     'GL': gl_engine,
     'WebGPU': wg_engine,
+    'bgfx': bgfx_engine,
   },
   section: 'Raster Engine',
   bool_yn: true,

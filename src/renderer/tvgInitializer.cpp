@@ -36,6 +36,10 @@
     #include "tvgWgRenderer.h"
 #endif
 
+#ifdef THORVG_BGFX_ENGINE_SUPPORT
+    #include "tvgBgfxRenderer.h"
+#endif
+
 
 /************************************************************************/
 /* Internal Class Implementation                                        */
@@ -112,6 +116,10 @@ Result Initializer::term() noexcept
     if (!WgRenderer::term()) return Result::InsufficientCondition;
 #endif
 
+#ifdef THORVG_BGFX_ENGINE_SUPPORT
+    if (!BgfxRenderer::term()) return Result::InsufficientCondition;
+#endif
+
     TaskScheduler::term();
 
     if (!LoaderMgr::term()) return Result::Unknown;
@@ -133,6 +141,8 @@ uint16_t THORVG_VERSION_NUMBER()
 }
 
 
+//Compile-time opt-in: replace the global operator new/delete with the tvg allocator.
+#ifdef THORVG_USE_CUSTOM_ALLOCATOR
 void* operator new(std::size_t size)
 {
     return tvg::malloc(size);
@@ -155,3 +165,4 @@ void operator delete[](void* ptr) noexcept
 {
     tvg::free(ptr);
 }
+#endif

@@ -2527,6 +2527,81 @@ struct TVG_API WgCanvas final : Canvas
 
 
 /**
+ * @class BgfxCanvas
+ *
+ * @brief A class for the rendering graphic elements with a bgfx raster engine.
+ *
+ * @warning Please do not use it. This class is not fully supported yet.
+ *
+ * @since 0.15
+ */
+struct TVG_API BgfxCanvas final : Canvas
+{
+    ~BgfxCanvas() override;
+
+    /**
+     * @brief Encapsulates the bgfx view range required for rendering.
+     *
+     * This structure reserves the bgfx view ids used by the raster engine. The
+     * canvas owns the half-open range [@p viewBase, @p viewBase + @p viewCount);
+     * other views may still be used by the embedding application outside of it.
+     *
+     * @note Experimental API
+     */
+    struct Context
+    {
+        uint16_t viewBase = 0;    // first bgfx view id owned by this canvas
+        uint16_t viewCount = 64;  // number of reserved views (0 releases the target)
+    };
+
+    /**
+     * @brief Sets the drawing target for the rasterization.
+     *
+     * @param[in] context bgfx view range reservation.
+     * @param[in] target @c nullptr for the bgfx back buffer, otherwise a pointer
+     *                   to a @c bgfx::FrameBufferHandle used as the present target.
+     * @param[in] w The width of the target.
+     * @param[in] h The height of the target.
+     * @param[in] cs Specifies how the pixel values should be interpreted. Currently,
+     *               it allows @c ColorSpace::ABGR8888(S) and @c ColorSpace::ARGB8888(S).
+     *
+     * @retval Result::InsufficientCondition if the canvas is performing rendering or bgfx is not initialized.
+     * @retval Result::NonSupport In case the bgfx engine is not supported or the color space is unsupported.
+     *
+     * @warning The caller owns the bgfx lifecycle: @c bgfx::init() must run before this
+     *          call and @c bgfx::frame() drives the actual presentation after Canvas::sync().
+     *          The canvas never initializes or shuts down bgfx itself.
+     *
+     * @see Canvas::viewport()
+     * @see Canvas::sync()
+     *
+     * @note Experimental API
+     */
+    Result target(const Context& context, void* target, uint32_t w, uint32_t h, ColorSpace cs) noexcept;
+
+    /**
+     * @brief Creates a new bgfx Canvas object with optional rendering engine settings.
+     *
+     * This method generates a bgfx canvas instance that can be used for drawing vector graphics.
+     * It accepts an optional parameter @p op to choose between different rendering engine behaviors.
+     *
+     * @param[in] op The rendering engine option. Default is @c EngineOption::Default.
+     *
+     * @return A new BgfxCanvas object.
+     *
+     * @note Currently, it does not support @c EngineOption::SmartRender. The request will be ignored.
+     *
+     * @see enum EngineOption
+     *
+     * @since 1.0
+     */
+    static BgfxCanvas* gen(EngineOption op = EngineOption::Default) noexcept;
+
+    _TVG_DECLARE_PRIVATE(BgfxCanvas);
+};
+
+
+/**
  * @class Initializer
  *
  * @brief A class that enables initialization and termination of the TVG engines.

@@ -50,13 +50,10 @@ bool GlDrawable::prepare(RenderUpdateFlag& updateFlags, const Point& viewSize, u
         flags |= updateFlags;
         return true;
     }
-
     updateFlags |= flags;
     flags = RenderUpdateFlag::None;
     if (updateFlags == RenderUpdateFlag::None) return true;
-
     size = viewSize;
-    this->opacity = opacity;
     return false;
 }
 
@@ -302,12 +299,12 @@ void GlRenderer::drawPrimitive(GlShape& shape, const RenderColor& c, RenderUpdat
     if (viewBounds.invalid()) return;
 
     auto stroke = (flag & RenderUpdateFlag::Stroke) || (flag & RenderUpdateFlag::GradientStroke);
-    auto bbox = stroke ? gpuTransformBounds(shape.geometry.strokeBounds, shape.geometry.matrix) : shape.geometry.fillBounds;
+    auto bbox = stroke ? gpuTransformBounds(shape.geometry.strokeBBox, shape.geometry.matrix) : shape.geometry.fillBBox;
     bbox.intersect(viewBounds);
     if (bbox.invalid()) return;
 
     auto viewRegion = viewportRegion(vp, bbox);
-    auto stencilMode = shape.geometry.getStencilMode(flag);
+    auto stencilMode = shape.geometry.stencilMode(flag);
 
     if (!blendShape && stencilMode == GlStencilMode::None && shape.clips.empty()) {
         mSolidBatch.draw(*this, shape, c, depth, viewRegion, viewportRegion(vp, viewBounds));
@@ -361,7 +358,7 @@ void GlRenderer::drawPrimitive(GlShape& shape, const Fill* fill, RenderUpdateFla
     if (viewBounds.invalid()) return;
 
     auto stroke = (flag & RenderUpdateFlag::Stroke) || (flag & RenderUpdateFlag::GradientStroke);
-    auto bbox = stroke ? gpuTransformBounds(shape.geometry.strokeBounds, shape.geometry.matrix) : shape.geometry.fillBounds;
+    auto bbox = stroke ? gpuTransformBounds(shape.geometry.strokeBBox, shape.geometry.matrix) : shape.geometry.fillBBox;
     bbox.intersect(viewBounds);
     if (bbox.invalid()) return;
 
@@ -405,7 +402,7 @@ void GlRenderer::drawPrimitive(GlShape& shape, const Fill* fill, RenderUpdateFla
 
     task->setViewport(viewRegion);
 
-    GlStencilMode stencilMode = shape.geometry.getStencilMode(flag);
+    GlStencilMode stencilMode = shape.geometry.stencilMode(flag);
     RenderRegion stencilBounds{};
     const GlGeometryBuffer* stencilBuffer = nullptr;
     uint32_t* stencilIndices = nullptr;
@@ -564,7 +561,7 @@ void GlRenderer::drawClip(Array<RenderData>& clips, const RenderRegion& viewBoun
         clipTask->setViewMatrix(_viewMatrix(shape->geometry, viewMatrix, flag));
         shape->geometry.draw(clipTask, &mGpuBuffer, flag);
 
-        auto clipBounds = shape->geometry.getBounds();
+        auto clipBounds = shape->geometry.bounds();
         clipBounds.intersect(viewBounds);
         clipTask->setViewport(viewportRegion(passViewport, clipBounds));
 
@@ -1067,9 +1064,7 @@ bool GlRenderer::bounds(RenderData data, Point* pt4, const Matrix& m)
 
 RenderRegion GlRenderer::region(RenderData data)
 {
-    if (!data) return {};
-    auto paint = static_cast<GlDrawable*>(data);
-    return paint->geometry.getBounds();
+    return data ? static_cast<GlDrawable*>(data)->geometry.bounds() : RenderRegion{};
 }
 
 
@@ -1204,13 +1199,19 @@ bool GlRenderer::renderImage(void* data)
 
     auto drawDepth = currentPass()->nextDrawDepth();
 
+    if (currentPass()->fbo == &mRootTarget && mBlendMethod == BlendMethod::Normal && image->clips.empty() && image->geometry.viewport == vp) {
+        auto viewRegion = viewportRegion(vp, bbox);
+        mSolidBatch.draw(*this, *image, drawDepth, viewRegion, viewRegion);
+        return true;
+    }
+
     if (!image->clips.empty()) drawClip(image->clips, bbox);
 
     auto task = new GlRenderTask(mPrograms[RT_Image]);
     task->setDrawDepth(drawDepth);
     image->geometry.draw(task, &mGpuBuffer, RenderUpdateFlag::Image);
 
-    bool complexBlend = beginComplexBlending(bbox, image->geometry.getBounds());
+    bool complexBlend = beginComplexBlending(bbox, image->geometry.bounds());
     if (complexBlend) vp = currentPass()->getViewport();
     task->setViewMatrix(currentPass()->getViewMatrix());
 
@@ -1322,11 +1323,15 @@ RenderData GlRenderer::prepare(RenderSurface* surface, RenderData data, const Ma
         textures.upload(mStateCache, image->texId, surface, filter);
     }
 
-    image->geometry.setMatrix(transform);
-    image->geometry.viewport = vport;
-    image->geometry.tesselateImage(surface);
+    if (flags & (RenderUpdateFlag::Image | RenderUpdateFlag::Transform)) {
+        image->geometry.transform(transform);
+        image->geometry.tesselateImage(surface);
+    }
 
     if (flags & RenderUpdateFlag::Clip) image->clips = clips;
+
+    image->geometry.viewport = vport;
+    image->opacity = opacity;
 
     return image;
 }
@@ -1344,26 +1349,22 @@ RenderData GlRenderer::prepare(const RenderShape& rshape, RenderData data, const
 
     if (flags & RenderUpdateFlag::Path) shape->geometry = GlGeometry();
 
-    shape->geometry.setMatrix(transform);
+    shape->geometry.transform(transform);
     shape->geometry.viewport = vport;
-    auto strokePathMissing = (flags & RenderUpdateFlag::Stroke) && rshape.stroke && std::isfinite(rshape.strokeWidth()) && !tvg::zero(rshape.strokeWidth()) && shape->geometry.optStrokePath.empty();
-    if ((flags & (RenderUpdateFlag::Path | RenderUpdateFlag::Transform)) || strokePathMissing) shape->geometry.prepare(rshape);
 
-    //TODO: Please precisely update tessellation not to update only if the color is changed.
-    if (flags & (RenderUpdateFlag::Color | RenderUpdateFlag::Gradient | RenderUpdateFlag::Transform | RenderUpdateFlag::Path)) {
+    auto updateStroke = (flags & RenderUpdateFlag::Stroke) && rshape.stroke && std::isfinite(rshape.strokeWidth()) && !tvg::zero(rshape.strokeWidth()) && shape->geometry.optStrokePath.empty();
+    auto updatePath = (flags & (RenderUpdateFlag::Path | RenderUpdateFlag::Transform)) || updateStroke;
+
+    if (updatePath) {
+        shape->geometry.prepare(rshape);
         shape->valid.fill = false;
-        float opacityMultiplier = 1.0f;
-        if (shape->geometry.tesselateShape(*(shape->rshape), &opacityMultiplier)) {
-            shape->opacity *= opacityMultiplier;
+        if (shape->geometry.tesselateShape(*(shape->rshape), shape->multiplier)) {
             shape->valid.fill = true;
         }
+        shape->valid.stroke = shape->geometry.tesselateStroke(*(shape->rshape));
     }
 
-    //TODO: Please precisely update tessellation not to update only if the color is changed.
-    if (flags & (RenderUpdateFlag::Color | RenderUpdateFlag::Stroke | RenderUpdateFlag::GradientStroke | RenderUpdateFlag::Transform | RenderUpdateFlag::Path)) {
-        shape->valid.stroke = false;
-        if (shape->geometry.tesselateStroke(*(shape->rshape))) shape->valid.stroke = true;
-    }
+    shape->opacity = float(opacity) * shape->multiplier;
 
     if (flags & RenderUpdateFlag::Clip) shape->clips = clips;
 
@@ -1404,11 +1405,11 @@ bool GlRenderer::intersectsShape(RenderData data, TVG_UNUSED const RenderRegion&
     if (!data) return false;
     auto shape = (GlShape*)data;
     if (shape->opacity == 0) return false;
-    const auto& bbox = shape->geometry.getBounds();
+    const auto& bbox = shape->geometry.bounds();
     if (region.intersected(bbox)) {
         if (region.contained(bbox)) return true;
         GlIntersector intersector;
-        return intersector.intersectShape(RenderRegion::intersect(region, bbox), shape);
+        return intersector.intersect(shape, RenderRegion::intersect(region, bbox));
     }
     return false;
 }
@@ -1419,11 +1420,11 @@ bool GlRenderer::intersectsImage(RenderData data, TVG_UNUSED const RenderRegion&
     if (!data) return false;
     auto image = static_cast<GlImage*>(data);
     if (image->opacity == 0) return false;
-    const auto& bbox = image->geometry.getBounds();
+    const auto& bbox = image->geometry.bounds();
     if (region.intersected(bbox)) {
         if (region.contained(bbox)) return true;
         GlIntersector intersector;
-        if (intersector.intersectImage(RenderRegion::intersect(region, bbox), image)) return true;
+        if (intersector.intersect(image, RenderRegion::intersect(region, bbox))) return true;
     }
     return false;
 }

@@ -998,6 +998,33 @@ TVG_API uint32_t tvg_paint_get_id(const Tvg_Paint paint);
 TVG_API Tvg_Result tvg_paint_set_id(Tvg_Paint paint, uint32_t id);
 
 /**
+ * @brief Gets the user-defined data associated with the Paint object.
+ *
+ * @param[in] paint The paint object whose user-defined data will be returned.
+ *
+ * @return The user-defined data, or @c NULL if none is set or @p paint is invalid.
+ *
+ * @see tvg_paint_set_data()
+ *
+ * @note Experimental API
+ */
+TVG_API void* tvg_paint_get_data(const Tvg_Paint paint);
+
+/**
+ * @brief Associates user-defined data with the Paint object.
+ *
+ * ThorVG does not interpret or manage the lifetime of this data.
+ *
+ * @param[in] paint The paint object whose user-defined data will be set.
+ * @param[in] data The user-defined data to associate with the paint object.
+ *
+ * @see tvg_paint_get_data()
+ *
+ * @note Experimental API
+ */
+TVG_API Tvg_Result tvg_paint_set_data(Tvg_Paint paint, void* data);
+
+/**
  * @brief Scales the given Tvg_Paint object by the given factor.
  *
  * @param[in] paint The paint object to be scaled.
@@ -3336,6 +3363,44 @@ typedef void (*Tvg_Audio_Resolver)(const Tvg_Audio_Info* info, void* data);
  * @see Tvg_Audio_Resolver
  */
 TVG_API Tvg_Result tvg_lottie_animation_set_audio_resolver(Tvg_Animation animation, Tvg_Audio_Resolver resolver, void* data);
+
+/**
+ * @brief Sets the master playback volume of the Lottie animation.
+ *
+ * The specified volume is applied to all media assets in the animation.
+ * Each media asset preserves its own volume, and the effective playback
+ * volume is calculated by multiplying the master volume by the media
+ * asset's volume.
+ *
+ * A value of 1.0 preserves the original volume.
+ * A value of 0.0 mutes all media.
+ * Values greater than 1.0 amplify the playback volume.
+ *
+ * The recommended range is [0.0, 2.0].
+ *
+ * @param[in] animation A Lottie animation object.
+ * @param[in] volume Master playback volume.
+ *
+ * @retval TVG_RESULT_INSUFFICIENT_CONDITION If the animation is not loaded.
+ *
+ * @note Experimental API
+ *
+ * @see tvg_lottie_animation_get_volume()
+ */
+TVG_API Tvg_Result tvg_lottie_animation_set_volume(Tvg_Animation animation, float volume);
+
+/**
+ * @brief Retrieves the master playback volume of the Lottie animation.
+ *
+ * @param[in] animation A Lottie animation object.
+ *
+ * @return The current master playback volume, otherwise 0 if the animation is invalid.
+ *
+ * @note Experimental API
+ *
+ * @see tvg_lottie_animation_set_volume()
+ */
+TVG_API float tvg_lottie_animation_get_volume(const Tvg_Animation animation);
 
 /** \} */   // end addtogroup ThorVGCapi_LottieAnimation
 

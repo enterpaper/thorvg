@@ -216,6 +216,21 @@ TVG_API Tvg_Result tvg_paint_set_id(Tvg_Paint paint, uint32_t id)
     return TVG_RESULT_INVALID_ARGUMENT;
 }
 
+TVG_API void* tvg_paint_get_data(const Tvg_Paint paint)
+{
+    if (paint) return reinterpret_cast<const Paint*>(paint)->data;
+    return nullptr;
+}
+
+TVG_API Tvg_Result tvg_paint_set_data(Tvg_Paint paint, void* data)
+{
+    if (paint) {
+        reinterpret_cast<Paint*>(paint)->data = data;
+        return TVG_RESULT_SUCCESS;
+    }
+    return TVG_RESULT_INVALID_ARGUMENT;
+}
+
 TVG_API uint16_t tvg_paint_ref(Tvg_Paint paint)
 {
     if (paint) return reinterpret_cast<Paint*>(paint)->ref();
@@ -1339,6 +1354,23 @@ TVG_API Tvg_Result tvg_lottie_animation_set_audio_resolver(Tvg_Animation animati
     }, data);
 #endif
     return TVG_RESULT_NOT_SUPPORTED;
+}
+
+TVG_API Tvg_Result tvg_lottie_animation_set_volume(Tvg_Animation animation, float volume)
+{
+#ifdef THORVG_LOTTIE_LOADER_SUPPORT
+    if (animation) return (Tvg_Result) reinterpret_cast<LottieAnimation*>(animation)->volume(volume);
+    return TVG_RESULT_INVALID_ARGUMENT;
+#endif
+    return TVG_RESULT_NOT_SUPPORTED;
+}
+
+TVG_API float tvg_lottie_animation_get_volume(const Tvg_Animation animation)
+{
+#ifdef THORVG_LOTTIE_LOADER_SUPPORT
+    if (animation) return reinterpret_cast<LottieAnimation*>(animation)->volume();
+#endif
+    return 0.0f;
 }
 
 /************************************************************************/

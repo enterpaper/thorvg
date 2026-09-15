@@ -22,12 +22,13 @@
 
 #include "tvgGpuCommon.h"
 
-/************************************************************************/
-/* Utility Functions Implementation                                     */
-/************************************************************************/
 
 namespace tvg
 {
+
+/************************************************************************/
+/* Utility Functions Implementation                                     */
+/************************************************************************/
 
 constexpr auto PATH_OPT_PX_TOLERANCE = 0.25f;
 constexpr auto DASH_ENDPOINT_TOLERANCE = DASH_PATTERN_THRESHOLD;
@@ -44,16 +45,6 @@ uint32_t gpuArcSegmentsCnt(float arcAngle, float pixelRadius)
     // Sagitta-based formula Approximation: 1 - cos(θ/2) ≈ (θ/2)²/2, so θ ≈ 2 * sqrt(2 * s/r)
     auto segmentAngle = 2.0f * sqrtf(2.0f * PX_TOLERANCE / pixelRadius);
     return static_cast<uint32_t>(ceilf(fabsf(arcAngle) / segmentAngle)) + 1;
-}
-
-bool gpuPointInTriangle(const Point& p, const Point& a, const Point& b, const Point& c)
-{
-    auto d1 = tvg::cross(p - a, p - b);
-    auto d2 = tvg::cross(p - b, p - c);
-    auto d3 = tvg::cross(p - c, p - a);
-    auto hasNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
-    auto hasPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
-    return !(hasNeg && hasPos);
 }
 
 RenderRegion gpuTransformBounds(const RenderRegion& bounds, const Matrix& matrix)
@@ -258,11 +249,11 @@ void gpuOptimize(const RenderPath& in, GpuOptimizeResult& result, const Matrix& 
     };
 
     // vecLen is guaranteed to be non-zero since closed points are already merged
-    auto point2Line = [](const Point& point, const Point& start, const Point& vec, float vecLen, float& maxDist, float& minT, float& maxT) {
+    auto point2Line = [](const Point& point, const Point& start, const Point& vec, float vecLenInv, float vecLenSqInv, float& maxDist, float& minT, float& maxT) {
         Point offset = point - start;
-        auto dist = fabsf(tvg::cross(vec, offset)) / vecLen;
+        auto dist = fabsf(tvg::cross(vec, offset)) * vecLenInv;
         if (dist > maxDist) maxDist = dist;
-        auto t = tvg::dot(offset, vec) / (vecLen * vecLen);
+        auto t = tvg::dot(offset, vec) * vecLenSqInv;
         if (t < minT) minT = t;
         if (t > maxT) maxT = t;
     };
@@ -270,11 +261,13 @@ void gpuOptimize(const RenderPath& in, GpuOptimizeResult& result, const Matrix& 
     auto validateCubic = [&point2Line](const Point& start, const Point& ctrl1, const Point& ctrl2, const Point& end, float& maxDist, float& minT, float& maxT, float& vecLen) {
         auto vec = end - start;
         vecLen = sqrtf(vec.x * vec.x + vec.y * vec.y);
+        auto vecLenInv = 1.0f / vecLen;
+        auto vecLenSqInv = vecLenInv * vecLenInv;
         maxDist = 0.0f;
         minT = FLT_MAX;
         maxT = FLT_MIN;
-        point2Line(ctrl1, start, vec, vecLen, maxDist, minT, maxT);
-        point2Line(ctrl2, start, vec, vecLen, maxDist, minT, maxT);
+        point2Line(ctrl1, start, vec, vecLenInv, vecLenSqInv, maxDist, minT, maxT);
+        point2Line(ctrl2, start, vec, vecLenInv, vecLenSqInv, maxDist, minT, maxT);
     };
 
     auto addLineCmd = [&](const Point& local, const Point& transformed) {
@@ -301,7 +294,7 @@ void gpuOptimize(const RenderPath& in, GpuOptimizeResult& result, const Matrix& 
             if (flat && inSpan) thinTracker.trackFlatCubic(startT, ctrl1T, ctrl2T, endT);
             else thinTracker.disable();
         };
-        trackThinCubic(startInT);
+        if (thinTracker.candidate) trackThinCubic(startInT);
 
         if (tvg::closed(startOutT, endT, PATH_OPT_PX_TOLERANCE)) return;
 
@@ -488,17 +481,19 @@ static inline DashPatternState dashPatternState(const RenderStroke::Dash& dash)
     state.offset = dash.offset;
     if (tvg::zero(dash.offset)) return state;
 
-    auto length = (dash.count % 2) ? dash.length * 2 : dash.length;
+    auto oddPattern = dash.count & 1u;
+    auto length = oddPattern ? dash.length * 2 : dash.length;
     state.offset = fmodf(state.offset, length);
     if (state.offset < 0) state.offset += length;
 
-    for (uint32_t i = 0; i < dash.count * (dash.count % 2 + 1); ++i, ++state.idx) {
-        auto curPattern = dash.pattern[i % dash.count];
+    auto patternCount = dash.count * (oddPattern + 1u);
+    for (uint32_t i = 0; i < patternCount; ++i) {
+        auto curPattern = dash.pattern[state.idx];
         if (state.offset < curPattern) break;
         state.offset -= curPattern;
         state.gap = !state.gap;
+        if (++state.idx == int32_t(dash.count)) state.idx = 0;
     }
-    state.idx = state.idx % dash.count;
     return state;
 }
 
@@ -567,11 +562,8 @@ static inline void resetDashedSubpath(RenderPath& subOut, DashSubpathState& stat
 
 static inline void appendDashedCommands(RenderPath& out, const RenderPath& subOut)
 {
-    auto ptIdx = 0u;
-    ARRAY_FOREACH(cmd, subOut.cmds)
-    {
-        appendDashedCommand(out, subOut, *cmd, ptIdx, false);
-    }
+    out.cmds.push(subOut.cmds);
+    out.pts.push(subOut.pts);
 }
 
 static inline bool prepareDashedPieces(RenderPath& subOut, DashSubpathState& state, Array<PieceRange>& pieces)
@@ -623,6 +615,12 @@ static inline bool appendClosedDashedSubpath(RenderPath& out, const RenderPath& 
 
 static inline void appendDashedSubpath(RenderPath& out, RenderPath& subOut, const Point& mappedStart, DashSubpathState& state, Array<PieceRange>& pieces)
 {
+    if (!state.closed) {
+        appendDashedCommands(out, subOut);
+        resetDashedSubpath(subOut, state);
+        return;
+    }
+
     if (!prepareDashedPieces(subOut, state, pieces)) return;
 
     if (!appendClosedDashedSubpath(out, subOut, pieces, mappedStart, state)) {
@@ -695,7 +693,7 @@ void StrokeDashPath::segment(Segment seg, float len, RenderPath& out, bool allow
                 right = seg;
             }
 
-            curIdx = (curIdx + 1) % dash.count;
+            if (++curIdx == int32_t(dash.count)) curIdx = 0;
             curLen = dash.pattern[curIdx];
             opGap = !opGap;
             seg = right;
@@ -711,7 +709,7 @@ void StrokeDashPath::segment(Segment seg, float len, RenderPath& out, bool allow
             drawFn(seg);
         }
         if (curLen < MIN_CURR_LEN_THRESHOLD) {
-            curIdx = (curIdx + 1) % dash.count;
+            if (++curIdx == int32_t(dash.count)) curIdx = 0;
             curLen = dash.pattern[curIdx];
             opGap = !opGap;
         }
@@ -826,6 +824,65 @@ bool gpuStrokeDash(const RenderShape& rs, RenderPath& out, const Matrix* transfo
         else return false;
     }
     return dash.gen(rs.path, out, allowDot, transform);
+}
+
+/************************************************************************/
+/* Intersector Functions Implementation                                 */
+/************************************************************************/
+
+static inline void _point(const void* vertices, uint32_t index, Point& point)
+{
+    static_assert(sizeof(Point) == 2 * sizeof(float), "vertices must be packed x/y floats.");
+    memcpy(&point, static_cast<const unsigned char*>(vertices) + size_t(index) * sizeof(Point), sizeof(Point));
+}
+
+bool gpuPointInTriangle(const Point& p, const Point& a, const Point& b, const Point& c)
+{
+    auto d1 = tvg::cross(p - a, p - b);
+    auto d2 = tvg::cross(p - b, p - c);
+    auto d3 = tvg::cross(p - c, p - a);
+    return !(((d1 < 0) || (d2 < 0) || (d3 < 0)) && ((d1 > 0) || (d2 > 0) || (d3 > 0)));
+}
+
+bool gpuPointInQuad(const Point& p, const Point (&triangle)[6])
+{
+    return gpuPointInTriangle(p, triangle[0], triangle[1], triangle[2]) || gpuPointInTriangle(p, triangle[3], triangle[4], triangle[5]);
+}
+
+// @p vertices are packed x/y float pairs (Point[] or float[]), @p count is the number of indices in the triangle list.
+// GL and WG vertices share the same packed (x, y) float layout as Point.
+bool gpuPointInAnyMesh(const Point& p, const void* vertices, const uint32_t* indices, uint32_t count)
+{
+    Point p0, p1, p2;
+    for (uint32_t i = 0; i < count; i += 3) {
+        _point(vertices, indices[i], p0);
+        _point(vertices, indices[i + 1], p1);
+        _point(vertices, indices[i + 2], p2);
+        if (gpuPointInTriangle(p, p0, p1, p2)) return true;
+    }
+    return false;
+}
+
+bool gpuPointInEvenOddMesh(const Point& p, const void* vertices, const uint32_t* indices, uint32_t count)
+{
+    uint32_t crossings = 0;
+
+    auto intersects = [&](const Point& p1, const Point& p2) {
+        if ((p1.y < p.y) == (p2.y < p.y)) return;
+        auto intersectionX = (p2.x - p1.x) * (p.y - p1.y) / (p2.y - p1.y) + p1.x;
+        if (intersectionX > p.x) ++crossings;
+    };
+
+    Point p0, p1, p2;
+    for (uint32_t i = 0; i < count; i += 3) {
+        _point(vertices, indices[i], p0);
+        _point(vertices, indices[i + 1], p1);
+        _point(vertices, indices[i + 2], p2);
+        intersects(p0, p1);
+        intersects(p1, p2);
+        intersects(p2, p0);
+    }
+    return (crossings % 2) == 1;
 }
 
 }  // namespace tvg

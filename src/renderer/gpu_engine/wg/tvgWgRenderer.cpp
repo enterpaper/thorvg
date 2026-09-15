@@ -20,11 +20,122 @@
  * SOFTWARE.
  */
 
+#include <cassert>
 #include "tvgTaskScheduler.h"
 #include "tvgWgRenderer.h"
 
 /************************************************************************/
-/* Internal Class Implementation                                        */
+/* WgPaintPool                                                          */
+/************************************************************************/
+
+WgShape* WgPaintPool::shape()
+{
+    if (!shapes.empty()) return shapes.pick();
+
+    auto paint = new WgShape();
+    list.push(paint);
+    return paint;
+}
+
+WgImage* WgPaintPool::image()
+{
+    if (!images.empty()) return images.pick();
+
+    auto paint = new WgImage();
+    list.push(paint);
+    return paint;
+}
+
+void WgPaintPool::recycle(WgShape* shape)
+{
+    shapes.push(shape);
+}
+
+void WgPaintPool::recycle(WgImage* image)
+{
+    images.push(image);
+}
+
+void WgPaintPool::release(WgContext& context)
+{
+    ARRAY_FOREACH(p, list) {
+        (*p)->release(context);
+        delete (*p);
+    }
+    shapes.clear();
+    images.clear();
+    list.clear();
+}
+
+/************************************************************************/
+/* WgIntersector Implementation                                         */
+/************************************************************************/
+
+struct WgIntersector
+{
+    bool intersect(const Array<WgPaint*>& clips, const Point& pt)
+    {
+        ARRAY_FOREACH(c, clips) {
+            auto clip = static_cast<const WgShape*>(*c);
+            const auto& mesh = clip->shape.mesh;
+            if (!clip->shape.bbox.inside(pt) || !gpuPointInEvenOddMesh(pt, mesh.vbuffer.data, mesh.ibuffer.data, mesh.ibuffer.count)) return false;
+        }
+        return true;
+    }
+
+    bool intersect(const WgShape* shape, const RenderRegion& region)
+    {
+        auto validFill = shape->shape.setting.valid && !shape->shape.mesh.ibuffer.empty();
+        auto validStroke = shape->stroke.setting.valid && !shape->stroke.mesh.ibuffer.empty();
+        if (!validFill && !validStroke) return false;
+
+        Matrix itransform;
+        if (validStroke && !inverse(&shape->transform, &itransform)) validStroke = false;
+        auto sizeX = region.sw();
+        auto sizeY = region.sh();
+
+        for (int32_t y = 0; y < sizeY; y++) {
+            auto py = (y % 2 == 0) ? y : sizeY - y - sizeY % 2;
+            for (int32_t x = 0; x < sizeX; x++) {
+                Point pt{(float)x + region.min.x, (float)py + region.min.y};
+                const auto& mesh = shape->shape.mesh;
+                auto hit = validFill ? shape->shape.bbox.inside(pt) && gpuPointInEvenOddMesh(pt, mesh.vbuffer.data, mesh.ibuffer.data, mesh.ibuffer.count) : false;
+                if (!hit && validStroke) {
+                    auto p = pt * itransform;
+                    const auto& mesh = shape->stroke.mesh;
+                    hit = shape->stroke.bbox.inside(p) && gpuPointInAnyMesh(p, mesh.vbuffer.data, mesh.ibuffer.data, mesh.ibuffer.count);
+                }
+                if (hit && intersect(shape->clips, pt)) return true;
+            }
+        }
+        return false;
+    }
+
+    bool intersect(const WgImage* image, const RenderRegion& region)
+    {
+        if (image->mesh.ibuffer.count < 6) return false;
+
+        const auto& mesh = image->mesh;
+        Point triangle[6];
+        for (uint32_t i = 0; i < 6; ++i) {
+            triangle[i] = mesh.vbuffer[mesh.ibuffer[i]];
+        }
+
+        auto sizeX = region.sw();
+        auto sizeY = region.sh();
+        for (int32_t y = 0; y < sizeY; y++) {
+            auto py = (y % 2 == 0) ? y : sizeY - y - sizeY % 2;
+            for (int32_t x = 0; x < sizeX; x++) {
+                Point pt{(float)x + region.min.x, (float)py + region.min.y};
+                if (gpuPointInQuad(pt, triangle) && intersect(image->clips, pt)) return true;
+            }
+        }
+        return false;
+    }
+};
+
+/************************************************************************/
+/* WgRenderer Implementation                                            */
 /************************************************************************/
 
 static int32_t _rendererCnt = -1;
@@ -38,9 +149,8 @@ void WgRenderer::release()
     mTextures.clear(mContext);
 
     // clear render data paint pools
-    mRenderDataShapePool.release(mContext);
-    mRenderDataPicturePool.release(mContext);
-    mRenderDataEffectParamsPool.release(mContext);
+    mPaintPool.release(mContext);
+    mEffectParamsPool.release(mContext);
 
     // clear render  pool
     mRenderTargetPool.release(mContext);
@@ -58,22 +168,21 @@ void WgRenderer::release()
     clearTargets();
 }
 
-
 void WgRenderer::disposeObjects()
 {
-    ARRAY_FOREACH(p, mDisposeRenderDatas) {
-        auto rdata = (WgRenderPaint*)(*p);
-        if (rdata->type() == Type::Shape) {
-            mRenderDataShapePool.free(mContext, (WgRenderShape*)rdata);
+    ARRAY_FOREACH(p, mDisposedPaints) {
+        auto paint = (WgPaint*)(*p);
+        paint->clips.clear();
+        if (paint->type() == Type::Shape) {
+            static_cast<WgShape*>(paint)->reset();
+            mPaintPool.recycle(static_cast<WgShape*>(paint));
         } else {
-            auto rdp = (WgRenderPicture*)rdata;
-            rdp->releaseTexture(mTextures, mContext);
-            mRenderDataPicturePool.free(mContext, rdp);
+            static_cast<WgImage*>(paint)->release(mTextures, mContext);
+            mPaintPool.recycle(static_cast<WgImage*>(paint));
         }
     }
-    mDisposeRenderDatas.clear();
+    mDisposedPaints.clear();
 }
-
 
 void WgRenderer::releaseSurfaceTexture()
 {
@@ -139,86 +248,69 @@ void WgRenderer::surfaceConfigure(WGPUSurface surface, WgContext& context, uint3
     wgpuSurfaceConfigure(surface, &surfaceConfig);
 }
 
-/************************************************************************/
-/* External Class Implementation                                        */
-/************************************************************************/
-
 RenderData WgRenderer::prepare(const RenderShape& rshape, RenderData data, const Matrix& transform, const Array<RenderData>& clips, uint8_t opacity, RenderUpdateFlag flags, bool clipper)
 {
-    auto rds = data ? (WgRenderShape*)data : mRenderDataShapePool.allocate(mContext);
+    auto shape = data ? (WgShape*)data : mPaintPool.shape();
     if (!data) flags = RenderUpdateFlag::All;
 
     // update geometry
-    if (flags & (RenderUpdateFlag::Transform | RenderUpdateFlag::Path | RenderUpdateFlag::Stroke)) {
-        rds->updateMeshes(rshape, flags, transform);
-    }
+    if (flags & (RenderUpdateFlag::Transform | RenderUpdateFlag::Path | RenderUpdateFlag::Stroke)) shape->update(rshape, transform, flags);
 
     // update transform
-    if (flags & RenderUpdateFlag::Transform) {
-        rds->transform = transform;
-        rds->updateAABB();
-    }
+    if (flags & RenderUpdateFlag::Transform) shape->transform = transform;
 
     // update paint settings
-    rds->shape.solid.opacity = rds->shape.setting.update(mTargetSurface.cs, opacity);
-    rds->stroke.solid.opacity = rds->stroke.setting.update(mTargetSurface.cs, opacity);
-    rds->fillRule = rshape.rule;
+    shape->update(rshape, vport, shape->shape.setting.update(mTargetSurface.cs, opacity), shape->stroke.setting.update(mTargetSurface.cs, opacity), opacity);
 
-    // setup fill settings
-    rds->viewport = vport;
-    rds->updateVisibility(rshape, opacity);
-    // update shape render settings
-    if (rds->shape.setting.valid) {
+    // shape
+    if (shape->shape.setting.valid) {
         if (rshape.fill && (flags & (RenderUpdateFlag::Gradient | RenderUpdateFlag::Transform))) {
-            auto updateColorRamp = ((flags & RenderUpdateFlag::Gradient) != RenderUpdateFlag::None);
-            rds->shape.setting.update(mContext, rshape.fill, &transform, updateColorRamp);
+            shape->shape.setting.update(mContext, rshape.fill, &transform, (flags & RenderUpdateFlag::Gradient));
         } else if (flags & (RenderUpdateFlag::Color | RenderUpdateFlag::Gradient)) {
-            rds->shape.solid.color = rshape.color;
-            rds->shape.setting.fillType = WgRenderSettingsType::Solid;
+            shape->shape.solid.color = rshape.color;
+            shape->shape.setting.fillType = WgRenderSettingsType::Solid;
         }
     }
-    // update strokes render settings
-    if (rds->stroke.setting.valid) {
+    // stroke
+    if (shape->stroke.setting.valid) {
         if (rshape.stroke->fill && flags & (RenderUpdateFlag::GradientStroke | RenderUpdateFlag::Transform)) {
-            auto updateColorRamp = ((flags & RenderUpdateFlag::GradientStroke) != RenderUpdateFlag::None);
-            rds->stroke.setting.update(mContext, rshape.stroke->fill, nullptr, updateColorRamp);
+            shape->stroke.setting.update(mContext, rshape.stroke->fill, nullptr, (flags & RenderUpdateFlag::GradientStroke));
         } else if (flags & (RenderUpdateFlag::Stroke | RenderUpdateFlag::GradientStroke)) {
-            rds->stroke.solid.color = rshape.stroke->color;
-            rds->stroke.setting.fillType = WgRenderSettingsType::Solid;
+            shape->stroke.solid.color = rshape.stroke->color;
+            shape->stroke.setting.fillType = WgRenderSettingsType::Solid;
         }
     }
 
-    if (flags & RenderUpdateFlag::Clip) rds->update(clips);
+    if (flags & RenderUpdateFlag::Clip) shape->assign(clips);
 
-    return rds;
+    return shape;
 }
 
 RenderData WgRenderer::prepare(RenderSurface* surface, RenderData data, const Matrix& transform, const Array<RenderData>& clips, uint8_t opacity, FilterMethod filter, RenderUpdateFlag flags)
 {
-    auto rdp = data ? (WgRenderPicture*)data : mRenderDataPicturePool.allocate(mContext);
+    auto image = data ? (WgImage*)data : mPaintPool.image();
     if (!data) flags = RenderUpdateFlag::All;
 
     // update paint settings
-    rdp->viewport = vport;
-    rdp->transform = transform;
-    rdp->renderSettings.update(surface->cs, opacity);
+    image->viewport = vport;
+    image->transform = transform;
+    image->setting.update(surface->cs, opacity);
 
-    auto updateSurface = (flags & (RenderUpdateFlag::Transform | RenderUpdateFlag::Path | RenderUpdateFlag::Image));
-    if (updateSurface) rdp->update(surface, transform);
+    if (flags & (RenderUpdateFlag::Transform | RenderUpdateFlag::Image)) image->update(surface, transform);
 
     // reload texture
-    auto cacheStale = rdp->imageTexture && (rdp->imageStamp != mTextures.stamp);
-    auto refreshTexture = ((flags & (RenderUpdateFlag::Path | RenderUpdateFlag::Image)) != RenderUpdateFlag::None);
-    auto needsImage = !rdp->imageTexture || (rdp->imageSource != surface) || (rdp->imageFilter != filter) || refreshTexture || cacheStale;
-    if (needsImage) {
-        rdp->releaseTexture(mTextures, mContext);
-        auto* entry = mTextures.retain(mContext, surface, filter, refreshTexture);
-        rdp->setImage(entry->texture, entry->bindGroup, surface, filter, mTextures.stamp);
+    auto cacheStale = !image->texture || (image->stamp != mTextures.stamp);
+    auto refreshTex = (flags & RenderUpdateFlag::Image);
+    auto update = cacheStale || refreshTex || (image->surface != surface) || (image->filter != filter);
+    if (update) {
+        image->release(mTextures, mContext);
+        auto* entry = mTextures.retain(mContext, surface, filter, refreshTex);
+        image->setup(entry->texture, entry->bindGroup, surface, filter, mTextures.stamp);
     }
 
-    if (flags & RenderUpdateFlag::Clip) rdp->update(clips);
+    if (flags & RenderUpdateFlag::Clip) image->assign(clips);
 
-    return rdp;
+    return image;
 }
 
 
@@ -251,7 +343,7 @@ bool WgRenderer::preRender()
 
 bool WgRenderer::renderShape(RenderData data)
 {
-    auto rdata = (WgRenderShape*)data;
+    auto rdata = (WgShape*)data;
     WgSceneTask* sceneTask = mSceneTaskStack.last();
 
     if (mSolidBatch.draw(sceneTask, rdata, mBlendMethod, mRenderTaskList)) return true;
@@ -266,8 +358,11 @@ bool WgRenderer::renderShape(RenderData data)
 
 bool WgRenderer::renderImage(RenderData data)
 {
-    WgPaintTask* paintTask = new WgPaintTask((WgRenderPaint*)data, mBlendMethod);
+    auto rdata = (WgImage*)data;
     WgSceneTask* sceneTask = mSceneTaskStack.last();
+    if (mSolidBatch.draw(sceneTask, rdata, mBlendMethod, mRenderTaskList)) return true;
+
+    WgPaintTask* paintTask = new WgPaintTask(rdata, mBlendMethod);
     sceneTask->children.push(paintTask);
     mRenderTaskList.push(paintTask);
     return true;
@@ -306,33 +401,28 @@ bool WgRenderer::postRender()
 void WgRenderer::dispose(RenderData data) {
     if (!mContext.queue) return;
     ScopedLock lock(mDisposeKey);
-    mDisposeRenderDatas.push(data);
+    mDisposedPaints.push(data);
 }
 
 
 bool WgRenderer::bounds(RenderData data, Point* pt4, const Matrix& m)
 {
     if (data) {
-        auto rdataPaint = (WgRenderPaint*)data;
-        if (rdataPaint->type() == Type::Shape) {
-            auto rdata = (WgRenderShape*)data;
-            if (rdata->stroke.setting.valid) {
-                tvg::BBox bbox;
-                bbox.init();
-                auto& vertexes = rdata->stroke.mesh.vbuffer;
-
-                for (uint32_t i = 0; i < vertexes.count; i++) {
-                    Point vert = vertexes[i] * m;
-                    bbox.min = min(bbox.min, vert);
-                    bbox.max = max(bbox.max, vert);
-                }
-
-                pt4[0] = bbox.min;
-                pt4[1] = {bbox.max.x, bbox.min.y};
-                pt4[2] = bbox.max;
-                pt4[3] = {bbox.min.x, bbox.max.y};
-                return true;
+        auto shape = static_cast<WgShape*>(data);
+        if (shape->stroke.setting.valid) {
+            tvg::BBox bbox;
+            bbox.init();
+            auto& vertexes = shape->stroke.mesh.vbuffer;
+            for (uint32_t i = 0; i < vertexes.count; i++) {
+                auto pt = vertexes[i] * m;
+                bbox.min = min(bbox.min, pt);
+                bbox.max = max(bbox.max, pt);
             }
+            pt4[0] = bbox.min;
+            pt4[1] = {bbox.max.x, bbox.min.y};
+            pt4[2] = bbox.max;
+            pt4[3] = {bbox.min.x, bbox.max.y};
+            return true;
         }
     }
     return false;
@@ -340,21 +430,12 @@ bool WgRenderer::bounds(RenderData data, Point* pt4, const Matrix& m)
 
 RenderRegion WgRenderer::region(RenderData data)
 {
-    if (!data) return {};
-    auto rdata = (WgRenderPaint*)data;
-    if (rdata->type() == Type::Shape) {
-        auto& v1 = rdata->aabb.min;
-        auto& v2 = rdata->aabb.max;
-        return {{int32_t(nearbyint(v1.x)), int32_t(nearbyint(v1.y))}, {int32_t(nearbyint(v2.x)), int32_t(nearbyint(v2.y))}};
-    }
-    return {{0, 0}, {(int32_t)mTargetSurface.w, (int32_t)mTargetSurface.h}};
+    return data ? static_cast<WgPaint*>(data)->region() : RenderRegion{};
 }
-
 
 bool WgRenderer::blend(BlendMethod method)
 {
     mBlendMethod = (method == BlendMethod::Composition ? BlendMethod::Normal : method);
-
     return true;
 }
 
@@ -387,20 +468,22 @@ bool WgRenderer::sync()
     disposeObjects();
 
     // if texture buffer used
-    WGPUTexture dstTexture = targetTexture;
+    auto dstTexture = targetTexture;
     if (surface) {
         releaseSurfaceTexture();
         wgpuSurfaceGetCurrentTexture(surface, &surfaceTexture);
         dstTexture = surfaceTexture.texture;
     }
 
-    if (!dstTexture) return false;
+    if (!dstTexture) {
+        TVGERR("WG_ENGINE", "Failed to acquire destination texture.");
+        return false;
+    }
 
     // insure that surface and offscreen target have the same size
-    if ((wgpuTextureGetWidth(dstTexture) == mRenderTargetRoot.width) && 
-        (wgpuTextureGetHeight(dstTexture) == mRenderTargetRoot.height)) {
-        WGPUTextureView dstTextureView = mContext.createTextureView(dstTexture);
-        WGPUCommandEncoder commandEncoder = mContext.createCommandEncoder();
+    if ((wgpuTextureGetWidth(dstTexture) == mRenderTargetRoot.width) && (wgpuTextureGetHeight(dstTexture) == mRenderTargetRoot.height)) {
+        auto dstTextureView = mContext.createTextureView(dstTexture);
+        auto commandEncoder = mContext.createCommandEncoder();
         // show root offscreen buffer
         mCompositor.blit(mContext, commandEncoder, &mRenderTargetRoot, dstTextureView, mTargetSurface.premultiplied);
         mContext.submitCommandEncoder(commandEncoder);
@@ -545,7 +628,7 @@ bool WgRenderer::endComposite(RenderCompositor* cmp)
 
 void WgRenderer::prepare(RenderEffect* effect, const Matrix& transform)
 {
-    if (!effect->rd) effect->rd = mRenderDataEffectParamsPool.allocate(mContext);
+    if (!effect->rd) effect->rd = mEffectParamsPool.allocate(mContext);
     auto effectParams = (WgRenderEffectParams*)effect->rd;
 
     if (effect->type == SceneEffect::GaussianBlur) {
@@ -603,7 +686,7 @@ bool WgRenderer::render(RenderCompositor* cmp, const RenderEffect* effect, TVG_U
 void WgRenderer::dispose(RenderEffect* effect)
 {
     auto effectParams = (WgRenderEffectParams*)effect->rd;
-    mRenderDataEffectParamsPool.free(mContext, effectParams);
+    mEffectParamsPool.free(mContext, effectParams);
     effect->rd = nullptr;
 };
 
@@ -639,15 +722,14 @@ bool WgRenderer::partial(bool disable)
 bool WgRenderer::intersectsShape(RenderData data, TVG_UNUSED const RenderRegion& region)
 {
     if (!data) return false;
-    auto shape = (WgRenderShape*)data;
+    auto shape = (WgShape*)data;
     RenderRegion bbox = {
-        {(int32_t)shape->aabb.min.x, (int32_t)shape->aabb.min.y},
-        {(int32_t)shape->aabb.max.x, (int32_t)shape->aabb.max.y}
-    };
+        {(int32_t)shape->bbox.min.x, (int32_t)shape->bbox.min.y},
+        {(int32_t)shape->bbox.max.x, (int32_t)shape->bbox.max.y}};
     if (region.intersected(bbox)) {
         if (region.contained(bbox)) return true;
         WgIntersector intersector;
-        return intersector.intersectShape(RenderRegion::intersect(region, bbox), shape);
+        return intersector.intersect(shape, RenderRegion::intersect(region, bbox));
     }
     return false;
 }
@@ -656,9 +738,9 @@ bool WgRenderer::intersectsShape(RenderData data, TVG_UNUSED const RenderRegion&
 bool WgRenderer::intersectsImage(RenderData data, TVG_UNUSED const RenderRegion& region)
 {
     if (!data) return false;
-    auto picture = (WgRenderPicture*)data;
+    auto picture = (WgImage*)data;
     WgIntersector intersector;
-    if (intersector.intersectImage(region, picture)) return true;
+    if (intersector.intersect(picture, region)) return true;
     return false;
 }
 

@@ -91,6 +91,7 @@ public:
     WGPURenderPipeline radial_conv{}; // convex geometry (no stencil)
     WGPURenderPipeline linear_conv{}; // convex geometry (no stencil)
     WGPURenderPipeline image{};
+    WGPURenderPipeline image_direct{}; // image geometry (no stencil)
     WGPURenderPipeline scene{};
     // pipelines custom blend
     WGPURenderPipeline solid_blend[18]{};
@@ -121,6 +122,11 @@ private:
         const WGPUVertexBufferLayout *vertexBufferLayouts, const uint32_t vertexBufferLayoutsCount,
         const WGPUColorWriteMask writeMask, const WGPUTextureFormat colorTargetFormat, const WGPUBlendState blendState,
         const WGPUDepthStencilState depthStencilState, const WGPUMultisampleState multisampleState);
+    WGPURenderPipeline createBlendPipeline(
+        WgContext& context, const char* pipelineLabel, const WGPUShaderModule shaderModule,
+        const char* fsEntryPoint, const WGPUPipelineLayout pipelineLayout,
+        const WGPUVertexBufferLayout* vertexBufferLayouts, const uint32_t vertexBufferLayoutsCount,
+        const WGPUCompareFunction stencilCompare);
     void releaseRenderPipeline(WGPURenderPipeline& renderPipeline);
     void releasePipelineLayout(WGPUPipelineLayout& pipelineLayout);
     void releaseShaderModule(WGPUShaderModule& shaderModule);
@@ -133,6 +139,12 @@ private:
         const WGPUCompareFunction stencilFunctionFrnt, const WGPUStencilOperation stencilOperationFrnt,
         const WGPUCompareFunction stencilFunctionBack, const WGPUStencilOperation stencilOperationBack);
 public:
+    WGPURenderPipeline solidBlend(WgContext& context, BlendMethod method);
+    WGPURenderPipeline radialBlend(WgContext& context, BlendMethod method);
+    WGPURenderPipeline linearBlend(WgContext& context, BlendMethod method);
+    WGPURenderPipeline imageBlend(WgContext& context, BlendMethod method);
+    WGPURenderPipeline sceneBlend(WgContext& context, BlendMethod method);
+
     void initialize(WgContext& context);
     void release(WgContext& context);
 };

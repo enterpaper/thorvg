@@ -46,34 +46,37 @@
     #define TVG_DEPRECATED
 #endif
 
-#define _TVG_DECLARE_PRIVATE(A) \
+#define _TVG_PROTECTED_CTOR(A) \
 protected: \
     A(const A&) = delete; \
     const A& operator=(const A&) = delete; \
     A()
 
-#define _TVG_DECLARE_PRIVATE_BASE(A) \
-    _TVG_DECLARE_PRIVATE(A); \
+#define _TVG_PROTECTED_CTOR_PIMPL(A) \
+    _TVG_PROTECTED_CTOR(A); \
 public: \
     struct Impl; \
     Impl* pImpl
 
-#define _TVG_DECLARE_PRIVATE_DERIVE(A) \
-    _TVG_DECLARE_PRIVATE(A); \
-protected: \
-    ~A() {}
+#define _TVG_PUBLIC_DTOR_PIMPL(A) \
+    _TVG_PROTECTED_CTOR_PIMPL(A); \
+    virtual ~A()
 
-#define _TVG_DISABLE_CTOR(A) \
+#define _TVG_PUBLIC_DTOR(A) \
+    _TVG_PROTECTED_CTOR(A); \
+public: \
+    virtual ~A() = default;
+
+#define _TVG_DISABLE_INST(A) \
     A() = delete; \
     ~A() = delete
 
-#define _TVG_DECLARE_ACCESSOR(A) \
+#define _TVG_FRIEND(A) \
     friend A
 
 namespace tvg
 {
 
-struct RenderMethod;
 struct Animation;
 struct Shape;
 
@@ -768,6 +771,15 @@ struct TVG_API Paint
     uint32_t id = 0;
 
     /**
+     * @brief User-defined data associated with this instance.
+     *
+     * ThorVG does not interpret or manage the lifetime of this data.
+     *
+     * @note Experimental API
+     */
+    void* data = nullptr;
+
+    /**
      * @brief Safely releases a Paint object.
      *
      * This is the counterpart to the `gen()` API, and releases the given Paint object safely, 
@@ -779,10 +791,7 @@ struct TVG_API Paint
      */
     static void rel(Paint* paint) noexcept;
 
-protected:
-    virtual ~Paint();
-
-    _TVG_DECLARE_PRIVATE_BASE(Paint);
+    _TVG_PUBLIC_DTOR_PIMPL(Paint);
 };
 
 
@@ -844,7 +853,7 @@ struct TVG_API Fill
      *
      * @return The number of colors used in the gradient. This value corresponds to the length of the @p colorStops array.
      */
-    uint32_t colorStops(const ColorStop** colorStops) const noexcept;
+    uint32_t colorStops(const ColorStop** colorStops = nullptr) const noexcept;
 
     /**
      * @brief Gets the FillSpread value of the fill.
@@ -882,7 +891,7 @@ struct TVG_API Fill
      */
     virtual Type type() const noexcept = 0;
 
-    _TVG_DECLARE_PRIVATE_BASE(Fill);
+    _TVG_PROTECTED_CTOR_PIMPL(Fill);
 };
 
 
@@ -898,8 +907,6 @@ struct TVG_API Fill
  */
 struct TVG_API Canvas
 {
-    virtual ~Canvas();
-
     /**
      * @brief Returns the list of paints currently held by the Canvas.
      *
@@ -1036,7 +1043,7 @@ struct TVG_API Canvas
      */
     Result sync() noexcept;
 
-    _TVG_DECLARE_PRIVATE_BASE(Canvas);
+    _TVG_PUBLIC_DTOR_PIMPL(Canvas);
 };
 
 
@@ -1101,7 +1108,7 @@ struct TVG_API LinearGradient : Fill
      */
     Type type() const noexcept override;
 
-    _TVG_DECLARE_PRIVATE(LinearGradient);
+    _TVG_PROTECTED_CTOR(LinearGradient);
 };
 
 
@@ -1173,7 +1180,7 @@ struct TVG_API RadialGradient : Fill
      */
     Type type() const noexcept override;
 
-    _TVG_DECLARE_PRIVATE(RadialGradient);
+    _TVG_PROTECTED_CTOR(RadialGradient);
 };
 
 
@@ -1593,7 +1600,7 @@ struct TVG_API Shape : Paint
      */
     Type type() const noexcept override;
 
-    _TVG_DECLARE_PRIVATE_DERIVE(Shape);
+    _TVG_PROTECTED_CTOR(Shape);
 };
 
 
@@ -1833,8 +1840,8 @@ struct TVG_API Picture : Paint
      */
     bool accessible = false;
 
-    _TVG_DECLARE_ACCESSOR(Animation);
-    _TVG_DECLARE_PRIVATE_DERIVE(Picture);
+    _TVG_FRIEND(Animation);
+    _TVG_PROTECTED_CTOR(Picture);
 };
 
 
@@ -1955,7 +1962,7 @@ struct TVG_API Scene : Paint
      */
     Type type() const noexcept override;
 
-    _TVG_DECLARE_PRIVATE_DERIVE(Scene);
+    _TVG_PROTECTED_CTOR(Scene);
 };
 
 
@@ -2318,7 +2325,7 @@ struct TVG_API Text : Paint
      */
     Type type() const noexcept override;
 
-    _TVG_DECLARE_PRIVATE_DERIVE(Text);
+    _TVG_PROTECTED_CTOR(Text);
 };
 
 
@@ -2369,7 +2376,7 @@ struct TVG_API SwCanvas final : Canvas
      */
     static SwCanvas* gen(EngineOption op = EngineOption::Default) noexcept;
 
-    _TVG_DECLARE_PRIVATE(SwCanvas);
+    _TVG_PROTECTED_CTOR(SwCanvas);
 };
 
 
@@ -2429,7 +2436,7 @@ struct TVG_API GlCanvas final : Canvas
      */
     static GlCanvas* gen(EngineOption op = EngineOption::Default) noexcept;
 
-    _TVG_DECLARE_PRIVATE(GlCanvas);
+    _TVG_PROTECTED_CTOR(GlCanvas);
 };
 
 
@@ -2437,8 +2444,6 @@ struct TVG_API GlCanvas final : Canvas
  * @class WgCanvas
  *
  * @brief A class for the rendering graphic elements with a WebGPU raster engine.
- *
- * @warning Please do not use it. This class is not fully supported yet.
  *
  * @since 0.15
  */
@@ -2522,7 +2527,7 @@ struct TVG_API WgCanvas final : Canvas
      */
     static WgCanvas* gen(EngineOption op = EngineOption::Default) noexcept;
 
-    _TVG_DECLARE_PRIVATE(WgCanvas);
+    _TVG_PROTECTED_CTOR(WgCanvas);
 };
 
 
@@ -2654,7 +2659,7 @@ struct TVG_API Initializer final
      */
     static const char* version(uint32_t* major, uint32_t* minor, uint32_t* micro) noexcept;
 
-    _TVG_DISABLE_CTOR(Initializer);
+    _TVG_DISABLE_INST(Initializer);
 };
 
 
@@ -2669,8 +2674,6 @@ struct TVG_API Initializer final
  */
 struct TVG_API Animation
 {
-    virtual ~Animation();
-
     /**
      * @brief Specifies the current frame in the animation.
      *
@@ -2776,9 +2779,8 @@ struct TVG_API Animation
      */
     static Animation* gen() noexcept;
 
-    _TVG_DECLARE_PRIVATE_BASE(Animation);
+    _TVG_PUBLIC_DTOR_PIMPL(Animation);
 };
-
 
 /**
  * @class Saver
@@ -2795,12 +2797,12 @@ struct TVG_API Animation
  *
  * @see Picture::load()
  *
+ * @warning This class is not designed for inheritance.
+ *
  * @since 0.5
  */
-struct TVG_API Saver final
+struct TVG_API Saver
 {
-    ~Saver();
-
     /**
      * @brief Sets the base background content for the saved image.
      *
@@ -2878,7 +2880,7 @@ struct TVG_API Saver final
      */
     static Saver* gen() noexcept;
 
-    _TVG_DECLARE_PRIVATE_BASE(Saver);
+    _TVG_PUBLIC_DTOR(Saver);
 };
 
 /**
@@ -2895,8 +2897,6 @@ struct TVG_API Saver final
  */
 struct TVG_API Accessor
 {
-    virtual ~Accessor();
-
     /**
      * @brief Set the access function for traversing the Picture scene tree nodes.
      *
@@ -2956,7 +2956,7 @@ struct TVG_API Accessor
      */
     static Accessor* gen() noexcept;
 
-    _TVG_DECLARE_PRIVATE_BASE(Accessor);
+    _TVG_PUBLIC_DTOR(Accessor);
 };
 
 /** @}*/

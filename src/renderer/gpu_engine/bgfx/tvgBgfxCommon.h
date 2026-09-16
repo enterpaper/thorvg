@@ -124,17 +124,25 @@ struct BgfxStencilState
 };
 
 // stencil winding ops (color/depth untouched)
+//
+// BGFX_STENCIL_FUNC_RMASK(0xff) is mandatory here: bgfx derives the stencil
+// *write* mask from the very same RMASK field (see unpackStencilWriteMask in
+// bgfx_p.h), so leaving it unset means StencilWriteMask == 0 and the INCR/DECR/
+// INVERT ops become no-ops -- the stencil stays 0, the cover pass (TEST_NOTEQUAL
+// against ref 0) never passes and every stencil-routed fill silently vanishes.
+// The wg backend sets the equivalent mask to 0xFFFFFFFF in tvgWgPipelines.cpp.
 inline BgfxStencilState bgfxStencilWindingNonZero()
 {
+    const uint32_t mask = BGFX_STENCIL_FUNC_RMASK(0xff);
     return {
-        BGFX_STENCIL_TEST_ALWAYS | BGFX_STENCIL_OP_FAIL_S_KEEP | BGFX_STENCIL_OP_FAIL_Z_KEEP | BGFX_STENCIL_OP_PASS_Z_INCR,
-        BGFX_STENCIL_TEST_ALWAYS | BGFX_STENCIL_OP_FAIL_S_KEEP | BGFX_STENCIL_OP_FAIL_Z_KEEP | BGFX_STENCIL_OP_PASS_Z_DECR,
+        mask | BGFX_STENCIL_TEST_ALWAYS | BGFX_STENCIL_OP_FAIL_S_KEEP | BGFX_STENCIL_OP_FAIL_Z_KEEP | BGFX_STENCIL_OP_PASS_Z_INCR,
+        mask | BGFX_STENCIL_TEST_ALWAYS | BGFX_STENCIL_OP_FAIL_S_KEEP | BGFX_STENCIL_OP_FAIL_Z_KEEP | BGFX_STENCIL_OP_PASS_Z_DECR,
     };
 }
 
 inline BgfxStencilState bgfxStencilWindingEvenOdd()
 {
-    auto both = BGFX_STENCIL_TEST_ALWAYS | BGFX_STENCIL_OP_FAIL_S_KEEP | BGFX_STENCIL_OP_FAIL_Z_KEEP | BGFX_STENCIL_OP_PASS_Z_INVERT;
+    auto both = BGFX_STENCIL_FUNC_RMASK(0xff) | BGFX_STENCIL_TEST_ALWAYS | BGFX_STENCIL_OP_FAIL_S_KEEP | BGFX_STENCIL_OP_FAIL_Z_KEEP | BGFX_STENCIL_OP_PASS_Z_INVERT;
     return {both, both};
 }
 

@@ -181,6 +181,15 @@ bgfx::ProgramHandle BgfxContext::program(BgfxProgram id)
 
 void BgfxContext::setupView(uint16_t view, bgfx::FrameBufferHandle fb, uint16_t w, uint16_t h, bool clear, uint32_t rgba)
 {
+    // Draw calls MUST execute in submission order: the stencil-and-cover fill
+    // relies on each shape's "winding" pass being immediately followed by its
+    // "cover" pass. bgfx's default view mode (SortKey::SortProgram, see
+    // SortKey::encodeDraw) reorders submits by program index BEFORE depth, so a
+    // gradient cover (Gradient program) would be pulled behind every later
+    // Solid winding pass -- the windings of all shapes would run first, the
+    // earlier cover would then repaint the whole stencil while zeroing it, and
+    // every following cover would find an all-zero stencil and draw nothing.
+    bgfx::setViewMode(view, bgfx::ViewMode::Sequential);
     bgfx::setViewRect(view, 0, 0, w, h);
     if (bgfx::isValid(fb)) bgfx::setViewFrameBuffer(view, fb);
     if (clear) {

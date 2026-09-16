@@ -58,6 +58,24 @@ static RenderRegion bgfxPaintRegion(const BBox& aabb, uint32_t w, uint32_t h)
     return {{int32_t(aabb.min.x), int32_t(aabb.min.y)}, {int32_t(aabb.max.x), int32_t(aabb.max.y)}};
 }
 
+/*
+ * Builds the u_color uniform for a fill/stroke draw.
+ *
+ * fs_solid consumes u_color as-is, but fs_gradient only uses its alpha (the
+ * color itself comes from the ramp). For a gradient paint `solidShape.color`
+ * is never written by the renderer and stays zero-initialized, so carrying
+ * packedColor().a here would make every gradient fully transparent. Use the
+ * shape opacity on its own instead -- the exact equivalent of the wg backend,
+ * whose gradient shader applies `So` (= BgfxSolidData::opacity) directly.
+ */
+static void bgfxColorUniform(float out[4], const BgfxSolidData& solid, BgfxFillType fillType)
+{
+    out[0] = solid.color.r / 255.0f;
+    out[1] = solid.color.g / 255.0f;
+    out[2] = solid.color.b / 255.0f;
+    out[3] = ((fillType == BgfxFillType::Solid) ? solid.packedColor().a : solid.opacity) / 255.0f;
+}
+
 
 //***********************************************************************
 // draw core
@@ -167,10 +185,10 @@ void BgfxCompositor::renderClipPath(BgfxContext& context, BgfxRenderDataPaint* p
         // 1. winding of the clip geometry into the stencil (no color, no depth)
         if (clip->meshStrokes.ibuffer.count > 0) {
             // stroke-only clip shape (its outline is already resolved by the stroker)
-            draw(context, {context.program(BgfxProgram::Solid), &clip->meshStrokes, 0, bgfxStencilDirect(), BGFX_SHAPE_DEPTH_DEFAULT, paintRegion});
+            draw(context, {context.program(BgfxProgram::Solid), &clip->meshStrokes, bgfxStateDepthAlways(false), bgfxStencilDirect(), BGFX_SHAPE_DEPTH_DEFAULT, paintRegion});
         } else if (clip->meshShape.ibuffer.count > 0) {
             auto stencil = (clip->fillRule == FillRule::NonZero) ? bgfxStencilWindingNonZero() : bgfxStencilWindingEvenOdd();
-            draw(context, {context.program(BgfxProgram::Solid), &clip->meshShape, 0, stencil, BGFX_SHAPE_DEPTH_DEFAULT, paintRegion});
+            draw(context, {context.program(BgfxProgram::Solid), &clip->meshShape, bgfxStateDepthAlways(false), stencil, BGFX_SHAPE_DEPTH_DEFAULT, paintRegion});
         }
 
         // 2. cover: mark the unclipped outside of the winding with a nearer depth
@@ -212,8 +230,8 @@ void BgfxCompositor::renderShape(BgfxContext& context, BgfxRenderDataShape* rend
         if (renderData->renderSettingsShape.skip || renderData->meshShape.ibuffer.empty()) return;
 
         auto& settings = renderData->renderSettingsShape;
-        float color[4] = {renderData->solidShape.color.r / 255.0f, renderData->solidShape.color.g / 255.0f,
-            renderData->solidShape.color.b / 255.0f, renderData->solidShape.packedColor().a / 255.0f};
+        float color[4];
+        bgfxColorUniform(color, renderData->solidShape, settings.fillType);
 
         auto fastPath = renderData->convex && settings.fillType == BgfxFillType::Solid && renderData->clips.empty();
         if (fastPath) {
@@ -227,7 +245,7 @@ void BgfxCompositor::renderShape(BgfxContext& context, BgfxRenderDataShape* rend
         // 1. winding into the stencil
         auto stencil = (renderData->fillRule == FillRule::NonZero) ? bgfxStencilWindingNonZero() : bgfxStencilWindingEvenOdd();
         draw(context, {context.program(BgfxProgram::Solid), &renderData->meshShape,
-            0, stencil, BGFX_SHAPE_DEPTH_DEFAULT, renderData->viewport, &settings.paintMatrix, color});
+            bgfxStateDepthAlways(false), stencil, BGFX_SHAPE_DEPTH_DEFAULT, renderData->viewport, &settings.paintMatrix, color});
 
         // 2. cover: draw color where the stencil is set and clear it
         DrawParams cover;
@@ -254,7 +272,7 @@ void BgfxCompositor::renderShape(BgfxContext& context, BgfxRenderDataShape* rend
 
         // stroke outline is a "direct" stencil marker (REPLACE 255)
         draw(context, {context.program(BgfxProgram::Solid), &renderData->meshStrokes,
-            0, bgfxStencilDirect(), BGFX_SHAPE_DEPTH_DEFAULT, renderData->viewport});
+            bgfxStateDepthAlways(false), bgfxStencilDirect(), BGFX_SHAPE_DEPTH_DEFAULT, renderData->viewport});
 
         float color[4] = {renderData->solidStroke.color.r / 255.0f, renderData->solidStroke.color.g / 255.0f,
             renderData->solidStroke.color.b / 255.0f, renderData->solidStroke.packedColor().a / 255.0f};

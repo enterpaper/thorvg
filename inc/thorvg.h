@@ -2602,7 +2602,7 @@ struct TVG_API BgfxCanvas final : Canvas
      */
     static BgfxCanvas* gen(EngineOption op = EngineOption::Default) noexcept;
 
-    _TVG_DECLARE_PRIVATE(BgfxCanvas);
+    _TVG_PROTECTED_CTOR(BgfxCanvas);
 };
 
 

@@ -15,7 +15,7 @@ endif()
 option(THORVG_ENABLE_CPU_ENGINE "Enable cpu rasterizer engine supoort" ON)
 option(THORVG_ENABLE_GL_ENGINE "Enable gl rasterizer engine support" ON)
 option(THORVG_ENABLE_WG_ENGINE "Enable webgpu rasterizer engine support" OFF)
-option(THORVG_ENABLE_BGFX_ENGINE "Enable bgfx rasterizer engine support" ON)
+option(THORVG_ENABLE_BGFX_ENGINE "Enable bgfx rasterizer engine support" OFF)
 
 # Multi-Tasking
 option(THORVG_ENABLE_THREADS "Enable thread support for parallel rendering" ON)
@@ -58,7 +58,7 @@ set_property(CACHE THORVG_SANITIZE PROPERTY STRINGS
 option(THORVG_ENABLE_FILE_IO "Enable file io support" ON)
 
 # Examples
-option(THORVG_BUILD_EXAMPLES "Build thorvg examples" ON)
+option(THORVG_BUILD_EXAMPLES "Build thorvg examples" OFF)
 
 set(THORVG_LIBRARY_TYPE "STATIC" CACHE STRING
     "Library type override for Thorvg (SHARED, STATIC, OBJECT, or empty to follow BULD_SHARED_LIBS)")
@@ -90,7 +90,10 @@ if(THORVG_ENABLE_BGFX_ENGINE)
     set(BGFX_BUILD_EXAMPLES  OFF  CACHE INTERNAL "")
     set(BGFX_CUSTOM_TARGETS  OFF  CACHE INTERNAL "")
     # add_compile_definitions(BGFX_CONFIG_MULTITHREADED=0)
-    add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/bgfx.cmake)
+    # 用 CMAKE_CURRENT_SOURCE_DIR 而不是 CMAKE_SOURCE_DIR：thorvg 在本工程里
+    # 是被 add_subdirectory 引入的子目录，CMAKE_SOURCE_DIR 指向的是宿主工程
+    # （dawn_app），那条路径下没有 bgfx.cmake。
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/third_party/bgfx.cmake)
 endif()
 
 if(THORVG_BUILD_EXAMPLES)
@@ -245,7 +248,7 @@ if(${THORVG_ENABLE_WG_ENGINE})
         ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgBindGroups.h
         ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgCommon.h
         ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgCompositor.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgGeometry.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgMesh.h
         ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgPipelines.h
         ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgRenderData.h
         ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgRenderTarget.h
@@ -257,13 +260,14 @@ if(${THORVG_ENABLE_WG_ENGINE})
         ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgStencilBatch.h
         ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgTessellator.h
         ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgTextureMgr.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/tvgGpuCommon.h
     )
 
     list(APPEND PROJECT_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgBindGroups.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgCommon.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgCompositor.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgGeometry.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgMesh.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgPipelines.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgRenderData.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgRenderTarget.cpp
@@ -275,6 +279,7 @@ if(${THORVG_ENABLE_WG_ENGINE})
         ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgStencilBatch.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgTessellator.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/wg/tvgWgTextureMgr.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/tvgGpuCommon.cpp
     )
 endif()
 
@@ -282,9 +287,9 @@ if(${THORVG_ENABLE_BGFX_ENGINE})
     set(TVG_BGFX_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx)
 
     include_directories(
-        ${CMAKE_SOURCE_DIR}/third_party/bgfx/include
-        ${CMAKE_SOURCE_DIR}/third_party/bimg/include
-        ${CMAKE_SOURCE_DIR}/third_party/bx/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/bgfx.cmake/bgfx/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/bgfx.cmake/bimg/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/bgfx.cmake/bx/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine
         ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx
         ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/gpu_engine/bgfx/shaders
@@ -1157,6 +1162,10 @@ if(${THORVG_ENABLE_GL_ENGINE})
     else()
         target_compile_definitions(${PROJECT_NAME} PRIVATE THORVG_GL_TARGET_GL)
     endif()
+endif()
+
+if(${THORVG_ENABLE_WG_ENGINE})
+    target_compile_definitions(${PROJECT_NAME} PRIVATE THORVG_WG_ENGINE_SUPPORT)
 endif()
 
 if(${THORVG_ENABLE_BGFX_ENGINE})

@@ -171,7 +171,6 @@ ThorVG is designed to be portable across a wide range of devices, including smal
   - [Related Projects](#related-projects)
   - [API Bindings](#api-bindings)
   - [Documentation](#documentation)
-  - [References](#references) 
   - [Dependencies](#dependencies)
   - [Contributors](#contributors)
   - [Partners](#partners)
@@ -464,25 +463,7 @@ $meson setup builddir -Dloaders="lottie, ..." -Dextra="lottie_exp, ..."
   <img width="700" height="auto" src="https://github.com/thorvg/thorvg.site/blob/main/readme/example_tizen.png">
 </p>
 
-### Other Projects
-- [Aestra](https://www.aestra.studio/), A creative music workstation powered by ThorVG for portable SVG rendering across UI system.
-- [ArcBrush](https://arcbrush.com/) is a free, node-based image editor that leverages ThorVG for high-performance SVG rasterization.
-- [Crank Software](https://www.cranksoftware.com/) integrates ThorVG into Storyboard Engine for SVG rendering in embedded and industrial HMIs.
-- [Evergine](https://evergine.com/) integrates ThorVG through its own ThorVG.Net, bringing vector graphics to its cross-platform graphics engine.
-- [Figo](https://www.figoui.xyz/en#) leverages ThorVG to render vector-based UIs directly from design files across multiple platforms.
-- [Flowmux](https://flowmux.org/) uses ThorVG to power its inline terminal image viewer, rendering SVG, Lottie, and other bitmap graphics.
-- [Flux Audio](https://www.flux.audio/) leverages ThorVG to power modern user interfaces and visuals across its audio platforms.
-- [GodSVG](https://godsvg.com/) is an open-source, cross-platform SVG editor that uses ThorVG for realtime vector graphics rendering.
-- [LibreScoot](https://librescoot.org/en/) uses ThorVG for GPU-free Lottie boot animations on its embedded mobility platform.
-- [MetaModule](https://4mscompany.com/metamodule) uses ThorVG as a lightweight vector rasterization backend for its modular synthesizer UI.
-- [MorphOS](https://www.morphos-team.net/), an Amiga-inspired operating system integrating ThorVG for modern vector graphics rendering.
-- [OpenVela](https://www.openvela.com/), an open-source AIoT operating system integrating ThorVG for vector graphics rendering.
-- [Paragraphic](https://paragraphic.design/), a cross-platform parametric graphic design application using ThorVG for realtime vector graphics rendering.
-- [TinyPiXOS](https://www.tinypixos.com/en/) is a lightweight, open-source Linux OS leveraging ThorVG for GUI rendering.
-- [Vagabond](https://store.steampowered.com/app/1673090/Vagabond/) uses ThorVG for vector graphics rendering in its procedurally generated 2D sandbox RPG.
-- [Wamsoft](https://www.wamsoft.jp/) integrates ThorVG as the vector rendering engine for path-based graphics in its Kirikiri Layer plugin.
-
-Would you like us to showcase your project with ThorVG? Feel free to [open an issue](https://github.com/thorvg/thorvg/issues) or submit a pull request!
+Discover more projects in our [Showcase](https://www.thorvg.org/showcase). Using ThorVG in your project? Feel free to contact us at thorvg@thorvg.org to get featured!
 
 [Back to contents](#contents)
 <br />
@@ -500,7 +481,7 @@ Would you like us to showcase your project with ThorVG? Feel free to [open an is
 </p>
 
 ### Thor Pirates
-Check out [Thor Pirates](https://github.com/thorvg/thorvg.demo.pirates). Every visual is rendered as real-time vector graphics, featuring physics-based cannon battles, dynamic water, ship debris, and interactive environmental effects. The entire game was built with AI-generated code using [Codex](https://chatgpt.com/codex/?utm_source=google&utm_medium=paid_search&c_id=24184441561&c_agid=203310201807&c_crid=822144559839&c_kwid=kwd-111182835&c_ims=&c_pms=9197166&c_nw=g&c_dvc=c&gad_source=1&gad_campaignid=24184441561&gbraid=0AAAAA-I0E5f01DRDjTP8rQ_p9rY5vklen&gclid=Cj0KCQjw5bjVBhCiARIsAJzMVnQf5XBIme-UebEIZUoYXOpv0NfPBbLdpAymExeO3H3gMSpog_nohNYaAl4sEALw_wcB), showcasing how naturally ThorVG’s retained structural APIs work with AI.
+Check out [Thor Pirates](https://github.com/thorvg/thorvg.demo.pirates). Every visual is rendered as real-time vector graphics, featuring physics-based cannon battles, dynamic water, ship debris, and interactive environmental effects. The entire game was built with AI-generated code using [Codex](https://chatgpt.com/codex/?utm_source=google&utm_medium=paid_search&c_id=24184441561&c_agid=203310201807&c_crid=822144559839&c_kwid=kwd-111182835&c_ims=&c_pms=9197166&c_nw=g&c_dvc=c&gad_source=1&gad_campaignid=24184441561&gbraid=0AAAAA-I0E5f01DRDjTP8rQ_p9rY5vklen&gclid=Cj0KCQjw5bjVBhCiARIsAJzMVnQf5XBIme-UebEIZUoYXOpv0NfPBbLdpAymExeO3H3gMSpog_nohNYaAl4sEALw_wcB), showcasing how naturally ThorVG’s retained structural APIs work with AI. [Give it a try!](https://thorvg-pirates.vercel.app/)
 
 <p align="center">
   <img width="700" height="auto" alt="thorvg" src="https://github.com/user-attachments/assets/cda8e26e-acbc-44fb-9b16-4c50b3b991f6" />
@@ -579,12 +560,6 @@ meson setup builddir -Dbindings="capi"
 The ThorVG API documentation is available at [thorvg.org/apis](https://www.thorvg.org/apis), and can also be found directly in this repository via the [C++ API](https://github.com/thorvg/thorvg/blob/main/inc/thorvg.h) and [C API](https://github.com/thorvg/thorvg/blob/main/src/bindings/capi/thorvg_capi.h). 
 
 For comprehensive and well-structured technical information, please visit the [DeepWiki](https://deepwiki.com/thorvg/thorvg), which offers in-depth guidance on ThorVG's architecture, features, and usage.
-
-[Back to contents](#contents)
-<br />
-<br />
-## References
-- [Universal Motion Graphics across All Platforms: Unleashing Creativity with ThorVG](https://youtu.be/qhHMycRPQ9M?si=RXAag3Fxm8R7W_I0)
 
 [Back to contents](#contents)
 <br />
